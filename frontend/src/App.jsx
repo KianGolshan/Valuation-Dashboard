@@ -19,6 +19,16 @@ export default function App() {
   const [securityFormInvestmentId, setSecurityFormInvestmentId] = useState(null);
   const [editingSecurity, setEditingSecurity] = useState(null);
   const [error, setError] = useState("");
+  const [workflowData, setWorkflowData] = useState({});
+
+  const loadWorkflow = useCallback(async () => {
+    try {
+      const data = await api.getWorkflowSummary();
+      setWorkflowData(data);
+    } catch {
+      // non-critical — sidebar dots just won't show
+    }
+  }, []);
 
   const loadInvestments = useCallback(async () => {
     try {
@@ -31,7 +41,8 @@ export default function App() {
 
   useEffect(() => {
     loadInvestments();
-  }, [loadInvestments]);
+    loadWorkflow();
+  }, [loadInvestments, loadWorkflow]);
 
   const selected = investments.find((i) => i.id === selectedInvestmentId) || null;
 
@@ -156,6 +167,7 @@ export default function App() {
             onDelete={handleDelete}
             onAddSecurity={handleAddSecurity}
             onDeleteSecurity={handleDeleteSecurity}
+            workflowData={workflowData}
           />
           <main className="flex-1 overflow-auto p-6">
             {selected ? (
@@ -191,6 +203,7 @@ export default function App() {
             onDelete={handleDelete}
             onAddSecurity={handleAddSecurity}
             onDeleteSecurity={handleDeleteSecurity}
+            workflowData={workflowData}
           />
           <main className="flex-1 overflow-auto p-6">
             {selected ? (

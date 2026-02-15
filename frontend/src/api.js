@@ -225,6 +225,15 @@ export const api = {
   getInvestmentPriorityQueue: (investmentId) =>
     request(`${API}/priority-queue/investments/${investmentId}`),
 
+  // Workflow
+  getWorkflowSummary: () => request(`${API}/workflow/investments`),
+
+  getInvestmentWorkflow: (investmentId) =>
+    request(`${API}/workflow/investments/${investmentId}`),
+
+  getUnmappedStatements: (investmentId) =>
+    request(`${API}/dashboard/financials/${investmentId}/unmapped-statements`),
+
   // Search
   search: (query, filters = {}) => {
     const params = new URLSearchParams({ q: query });

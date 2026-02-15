@@ -1,5 +1,41 @@
 import { useState } from "react";
 
+const WORKFLOW_COLORS = {
+  approved: "bg-green-400",
+  reviewed: "bg-blue-400",
+  mapped: "bg-purple-400",
+  partially_mapped: "bg-purple-300",
+  parsed: "bg-yellow-400",
+  not_parsed: "bg-slate-500",
+};
+
+const WORKFLOW_LABELS = {
+  approved: "Approved",
+  reviewed: "Reviewed",
+  mapped: "Mapped",
+  partially_mapped: "Partially Mapped",
+  parsed: "Parsed",
+  not_parsed: "Not Parsed",
+};
+
+function WorkflowDot({ data }) {
+  if (!data) return null;
+  const color = WORKFLOW_COLORS[data.overall_status] || "bg-slate-500";
+  const label = WORKFLOW_LABELS[data.overall_status] || data.overall_status;
+  const fraction =
+    data.total_statements > 0
+      ? `${data.total_approved}/${data.total_statements}`
+      : null;
+  return (
+    <span className="flex items-center gap-1 ml-auto shrink-0" title={`${label}${fraction ? ` (${fraction} approved)` : ""}`}>
+      {fraction && (
+        <span className="text-[10px] text-slate-400">{fraction}</span>
+      )}
+      <span className={`inline-block w-2 h-2 rounded-full ${color}`} />
+    </span>
+  );
+}
+
 const ASSET_TYPE_COLORS = {
   equity: "bg-blue-500",
   debt: "bg-amber-500",
@@ -27,6 +63,7 @@ export default function Sidebar({
   onDelete,
   onAddSecurity,
   onDeleteSecurity,
+  workflowData,
 }) {
   const [expandedIds, setExpandedIds] = useState(new Set());
   const [search, setSearch] = useState("");
@@ -107,7 +144,8 @@ export default function Sidebar({
                 <div className="min-w-0 flex-1">
                   <p className="font-medium text-sm truncate flex items-center">
                     <AssetBadge type={inv.asset_type} />
-                    {inv.investment_name}
+                    <span className="truncate">{inv.investment_name}</span>
+                    <WorkflowDot data={workflowData && workflowData[inv.id]} />
                   </p>
                   {inv.asset_type && (
                     <p className="text-xs text-slate-400 mt-0.5 pl-3.5">
