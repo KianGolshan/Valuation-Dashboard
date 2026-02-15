@@ -9,12 +9,24 @@ function formatSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-const PARSE_BADGES = {
-  completed: { label: "Parsed", cls: "bg-green-100 text-green-700" },
-  processing: { label: "Parsing...", cls: "bg-yellow-100 text-yellow-700" },
-  pending: { label: "Queued", cls: "bg-yellow-100 text-yellow-700" },
-  failed: { label: "Failed", cls: "bg-red-100 text-red-700" },
+const WORKFLOW_BADGES = {
+  not_parsed: { label: "Not Parsed", cls: "bg-gray-100 text-gray-600" },
+  parsed: { label: "Parsed", cls: "bg-yellow-100 text-yellow-700" },
+  partially_mapped: { label: "Partially Mapped", cls: "bg-purple-50 text-purple-600" },
+  mapped: { label: "Mapped", cls: "bg-purple-100 text-purple-700" },
+  reviewed: { label: "Reviewed", cls: "bg-blue-100 text-blue-700" },
+  approved: { label: "Approved", cls: "bg-green-100 text-green-700" },
 };
+
+const WORKFLOW_OPTIONS = [
+  { value: "", label: "All Stages" },
+  { value: "not_parsed", label: "Not Parsed" },
+  { value: "parsed", label: "Parsed" },
+  { value: "partially_mapped", label: "Partially Mapped" },
+  { value: "mapped", label: "Mapped" },
+  { value: "reviewed", label: "Reviewed" },
+  { value: "approved", label: "Approved" },
+];
 
 export default function DocumentsTab({ investments }) {
   const [documents, setDocuments] = useState([]);
@@ -23,6 +35,7 @@ export default function DocumentsTab({ investments }) {
   const [filterInvestment, setFilterInvestment] = useState("");
   const [filterType, setFilterType] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [filterWorkflow, setFilterWorkflow] = useState("");
   const [viewerDoc, setViewerDoc] = useState(null);
   const [financialsDoc, setFinancialsDoc] = useState(null);
 
@@ -48,6 +61,7 @@ export default function DocumentsTab({ investments }) {
     if (filterInvestment && doc.investment_id !== Number(filterInvestment))
       return false;
     if (filterType && doc.document_type !== filterType) return false;
+    if (filterWorkflow && doc.workflow_status !== filterWorkflow) return false;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       return (
@@ -110,6 +124,17 @@ export default function DocumentsTab({ investments }) {
             </option>
           ))}
         </select>
+        <select
+          value={filterWorkflow}
+          onChange={(e) => setFilterWorkflow(e.target.value)}
+          className="border border-gray-300 rounded px-3 py-1.5 text-sm"
+        >
+          {WORKFLOW_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       {loading && (
@@ -138,15 +163,25 @@ export default function DocumentsTab({ investments }) {
                 <th className="px-4 py-3">Type</th>
                 <th className="px-4 py-3">Size</th>
                 <th className="px-4 py-3">Date</th>
-                <th className="px-4 py-3">Parse Status</th>
+                <th className="px-4 py-3">Workflow</th>
                 <th className="px-4 py-3">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filtered.map((doc) => {
-                const parseBadge = doc.parse_status
-                  ? PARSE_BADGES[doc.parse_status] || null
+                const wfBadge = doc.workflow_status
+                  ? WORKFLOW_BADGES[doc.workflow_status] || null
                   : null;
+                const detailText =
+                  doc.statement_count > 0
+                    ? doc.workflow_status === "approved"
+                      ? `${doc.approved_count}/${doc.statement_count} approved`
+                      : doc.workflow_status === "reviewed"
+                        ? `${doc.reviewed_count}/${doc.statement_count} reviewed`
+                        : doc.mapped_count > 0
+                          ? `${doc.mapped_count}/${doc.statement_count} mapped`
+                          : null
+                    : null;
                 return (
                   <tr key={doc.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium text-gray-900">
@@ -170,12 +205,17 @@ export default function DocumentsTab({ investments }) {
                       {doc.document_date || "—"}
                     </td>
                     <td className="px-4 py-3">
-                      {parseBadge ? (
-                        <span
-                          className={`text-xs px-2 py-0.5 rounded-full ${parseBadge.cls}`}
-                        >
-                          {parseBadge.label}
-                        </span>
+                      {wfBadge ? (
+                        <div>
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded-full ${wfBadge.cls}`}
+                          >
+                            {wfBadge.label}
+                          </span>
+                          {detailText && (
+                            <p className="text-[10px] text-gray-400 mt-0.5">{detailText}</p>
+                          )}
+                        </div>
                       ) : (
                         <span className="text-xs text-gray-400">—</span>
                       )}

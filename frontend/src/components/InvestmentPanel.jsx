@@ -12,6 +12,72 @@ function formatSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+const WORKFLOW_STAGES = [
+  { key: "not_parsed", label: "Not Parsed", color: "bg-gray-400" },
+  { key: "parsed", label: "Parsed", color: "bg-yellow-400" },
+  { key: "partially_mapped", label: "Partial", color: "bg-purple-300" },
+  { key: "mapped", label: "Mapped", color: "bg-purple-500" },
+  { key: "reviewed", label: "Reviewed", color: "bg-blue-500" },
+  { key: "approved", label: "Approved", color: "bg-green-500" },
+];
+
+const WORKFLOW_BADGES = {
+  not_parsed: { label: "Not Parsed", cls: "bg-gray-100 text-gray-600" },
+  parsed: { label: "Parsed", cls: "bg-yellow-100 text-yellow-700" },
+  partially_mapped: { label: "Partially Mapped", cls: "bg-purple-50 text-purple-600" },
+  mapped: { label: "Mapped", cls: "bg-purple-100 text-purple-700" },
+  reviewed: { label: "Reviewed", cls: "bg-blue-100 text-blue-700" },
+  approved: { label: "Approved", cls: "bg-green-100 text-green-700" },
+};
+
+function WorkflowProgressBar({ workflowData }) {
+  if (!workflowData || workflowData.document_count === 0) return null;
+
+  const total = workflowData.document_count;
+
+  return (
+    <div className="bg-white rounded-lg shadow p-4 mb-6">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+          Document Workflow
+        </h3>
+        <span className="text-xs text-gray-500">
+          {workflowData.total_approved}/{workflowData.total_statements} statements approved ({workflowData.completion_pct}%)
+        </span>
+      </div>
+      {/* Segmented bar */}
+      <div className="flex h-3 rounded-full overflow-hidden bg-gray-100 mb-2">
+        {WORKFLOW_STAGES.map((stage) => {
+          const count = workflowData.workflow_counts[stage.key] || 0;
+          if (count === 0) return null;
+          const pct = (count / total) * 100;
+          return (
+            <div
+              key={stage.key}
+              className={`${stage.color} transition-all`}
+              style={{ width: `${pct}%` }}
+              title={`${stage.label}: ${count}`}
+            />
+          );
+        })}
+      </div>
+      {/* Legend */}
+      <div className="flex flex-wrap gap-x-4 gap-y-1">
+        {WORKFLOW_STAGES.map((stage) => {
+          const count = workflowData.workflow_counts[stage.key] || 0;
+          if (count === 0) return null;
+          return (
+            <span key={stage.key} className="flex items-center gap-1 text-xs text-gray-600">
+              <span className={`inline-block w-2.5 h-2.5 rounded-sm ${stage.color}`} />
+              {stage.label}: {count}
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function formatCurrency(value) {
   if (value == null) return "—";
   return new Intl.NumberFormat("en-US", {
@@ -20,7 +86,7 @@ function formatCurrency(value) {
   }).format(value);
 }
 
-function DocumentTable({ documents, investmentId, onDelete, onView, onFinancials, onValidate }) {
+function DocumentTable({ documents, investmentId, onDelete, onView, onFinancials, onValidate, workflowByDocId }) {
   if (documents.length === 0) {
     return (
       <div className="text-center py-12 text-gray-400">
@@ -39,69 +105,98 @@ function DocumentTable({ documents, investmentId, onDelete, onView, onFinancials
             <th className="px-4 py-3">Type</th>
             <th className="px-4 py-3">Size</th>
             <th className="px-4 py-3">Date</th>
+            <th className="px-4 py-3">Workflow</th>
             <th className="px-4 py-3">Actions</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
-          {documents.map((doc) => (
-            <tr key={doc.id} className="hover:bg-gray-50">
-              <td className="px-4 py-3 font-medium text-gray-900">
-                {doc.document_name}
-              </td>
-              <td className="px-4 py-3 text-gray-600 truncate max-w-[200px]">
-                {doc.original_filename}
-              </td>
-              <td className="px-4 py-3">
-                <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full">
-                  {doc.document_type}
-                </span>
-              </td>
-              <td className="px-4 py-3 text-gray-600">
-                {formatSize(doc.file_size)}
-              </td>
-              <td className="px-4 py-3 text-gray-600">
-                {doc.document_date || "—"}
-              </td>
-              <td className="px-4 py-3">
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => onView(doc)}
-                    className="text-green-600 hover:text-green-800 text-xs font-medium"
-                  >
-                    View
-                  </button>
-                  {doc.document_type?.toLowerCase() === ".pdf" && (
-                    <>
-                      <button
-                        onClick={() => onFinancials(doc)}
-                        className="text-purple-600 hover:text-purple-800 text-xs font-medium"
-                      >
-                        Financials
-                      </button>
-                      <button
-                        onClick={() => onValidate(doc)}
-                        className="text-orange-600 hover:text-orange-800 text-xs font-medium"
-                      >
-                        Validate
-                      </button>
-                    </>
+          {documents.map((doc) => {
+            const wf = workflowByDocId && workflowByDocId[doc.id];
+            const wfBadge = wf ? WORKFLOW_BADGES[wf.workflow_status] || null : null;
+            const detailText =
+              wf && wf.statement_count > 0
+                ? wf.workflow_status === "approved"
+                  ? `${wf.approved_count}/${wf.statement_count} approved`
+                  : wf.workflow_status === "reviewed"
+                    ? `${wf.reviewed_count}/${wf.statement_count} reviewed`
+                    : wf.mapped_count > 0
+                      ? `${wf.mapped_count}/${wf.statement_count} mapped`
+                      : null
+                : null;
+            return (
+              <tr key={doc.id} className="hover:bg-gray-50">
+                <td className="px-4 py-3 font-medium text-gray-900">
+                  {doc.document_name}
+                </td>
+                <td className="px-4 py-3 text-gray-600 truncate max-w-[200px]">
+                  {doc.original_filename}
+                </td>
+                <td className="px-4 py-3">
+                  <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full">
+                    {doc.document_type}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-gray-600">
+                  {formatSize(doc.file_size)}
+                </td>
+                <td className="px-4 py-3 text-gray-600">
+                  {doc.document_date || "—"}
+                </td>
+                <td className="px-4 py-3">
+                  {wfBadge ? (
+                    <div>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${wfBadge.cls}`}>
+                        {wfBadge.label}
+                      </span>
+                      {detailText && (
+                        <p className="text-[10px] text-gray-400 mt-0.5">{detailText}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-gray-400">—</span>
                   )}
-                  <a
-                    href={api.downloadUrl(investmentId, doc.id)}
-                    className="text-blue-600 hover:text-blue-800 text-xs font-medium"
-                  >
-                    Download
-                  </a>
-                  <button
-                    onClick={() => onDelete(doc.id)}
-                    className="text-red-500 hover:text-red-700 text-xs font-medium"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </td>
-            </tr>
-          ))}
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => onView(doc)}
+                      className="text-green-600 hover:text-green-800 text-xs font-medium"
+                    >
+                      View
+                    </button>
+                    {doc.document_type?.toLowerCase() === ".pdf" && (
+                      <>
+                        <button
+                          onClick={() => onFinancials(doc)}
+                          className="text-purple-600 hover:text-purple-800 text-xs font-medium"
+                        >
+                          Financials
+                        </button>
+                        <button
+                          onClick={() => onValidate(doc)}
+                          className="text-orange-600 hover:text-orange-800 text-xs font-medium"
+                        >
+                          Validate
+                        </button>
+                      </>
+                    )}
+                    <a
+                      href={api.downloadUrl(investmentId, doc.id)}
+                      className="text-blue-600 hover:text-blue-800 text-xs font-medium"
+                    >
+                      Download
+                    </a>
+                    <button
+                      onClick={() => onDelete(doc.id)}
+                      className="text-red-500 hover:text-red-700 text-xs font-medium"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -122,10 +217,28 @@ export default function InvestmentPanel({
   const [viewerDoc, setViewerDoc] = useState(null);
   const [financialsDoc, setFinancialsDoc] = useState(null);
   const [validatingDoc, setValidatingDoc] = useState(null);
+  const [workflowData, setWorkflowData] = useState(null);
+  const [workflowByDocId, setWorkflowByDocId] = useState({});
 
   const selectedSecurity = selectedSecurityId
     ? (investment.securities || []).find((s) => s.id === selectedSecurityId)
     : null;
+
+  const loadWorkflow = useCallback(async () => {
+    try {
+      const data = await api.getInvestmentWorkflow(investment.id);
+      setWorkflowData(data);
+      const byDoc = {};
+      if (data.documents) {
+        for (const d of data.documents) {
+          byDoc[d.document_id] = d;
+        }
+      }
+      setWorkflowByDocId(byDoc);
+    } catch {
+      // non-critical
+    }
+  }, [investment.id]);
 
   const load = useCallback(async () => {
     try {
@@ -141,7 +254,8 @@ export default function InvestmentPanel({
 
   useEffect(() => {
     load();
-  }, [load]);
+    loadWorkflow();
+  }, [load, loadWorkflow]);
 
   async function handleDeleteDoc(docId) {
     if (!confirm("Delete this document?")) return;
@@ -220,6 +334,7 @@ export default function InvestmentPanel({
           onView={setViewerDoc}
           onFinancials={setFinancialsDoc}
           onValidate={setValidatingDoc}
+          workflowByDocId={workflowByDocId}
         />
 
         {uploading && (
@@ -302,6 +417,9 @@ export default function InvestmentPanel({
         </div>
       </div>
 
+      {/* Workflow Progress Bar */}
+      <WorkflowProgressBar workflowData={workflowData} />
+
       {error && (
         <div className="bg-red-50 border border-red-200 rounded px-4 py-2 text-red-700 text-sm mb-4">
           {error}
@@ -376,6 +494,7 @@ export default function InvestmentPanel({
         onView={setViewerDoc}
         onFinancials={setFinancialsDoc}
         onValidate={setValidatingDoc}
+        workflowByDocId={workflowByDocId}
       />
 
       {uploading && (

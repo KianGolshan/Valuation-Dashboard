@@ -172,9 +172,10 @@ def list_documents(
 
 
 def list_all_documents(db: Session) -> list[dict]:
-    """List all documents across all investments with investment name and parse status."""
+    """List all documents across all investments with investment name, parse status, and workflow status."""
     from app.investments.models import Investment
     from app.financial_parsing.models import ParseJob
+    from app.financial_parsing.workflow_service import compute_document_workflow
 
     docs = (
         db.query(Document, Investment.investment_name)
@@ -194,6 +195,10 @@ def list_all_documents(db: Session) -> list[dict]:
     result = []
     for doc, inv_name in docs:
         job = job_by_doc.get(doc.id)
+        # Compute workflow status for PDF documents
+        workflow = None
+        if doc.document_type and doc.document_type.lower() == ".pdf":
+            workflow = compute_document_workflow(db, doc.id)
         result.append({
             "id": doc.id,
             "investment_id": doc.investment_id,
@@ -206,6 +211,11 @@ def list_all_documents(db: Session) -> list[dict]:
             "original_filename": doc.original_filename,
             "created_at": doc.created_at.isoformat() if doc.created_at else None,
             "parse_status": job.status if job else None,
+            "workflow_status": workflow["workflow_status"] if workflow else None,
+            "statement_count": workflow["statement_count"] if workflow else None,
+            "mapped_count": workflow["mapped_count"] if workflow else None,
+            "reviewed_count": workflow["reviewed_count"] if workflow else None,
+            "approved_count": workflow["approved_count"] if workflow else None,
         })
     return result
 

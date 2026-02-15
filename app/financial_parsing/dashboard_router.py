@@ -17,6 +17,7 @@ from app.financial_parsing.consolidation.change_detection import (
 from app.financial_parsing.consolidation.normalization import (
     normalize_all_for_investment,
 )
+from app.documents.models import Document
 from app.financial_parsing.models import FinancialStatement
 from app.financial_parsing.schemas import FinancialStatementResponse
 
@@ -148,3 +149,38 @@ def export_investment_comparison(
         filename="financial_comparison.xlsx",
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+
+
+@router.get("/financials/{investment_id}/unmapped-statements")
+def get_unmapped_statements(
+    investment_id: int,
+    db: Session = Depends(get_db),
+):
+    """Return statements from this investment's documents that have no investment_id mapping."""
+    doc_ids = [
+        d.id
+        for d in db.query(Document.id)
+        .filter(Document.investment_id == investment_id)
+        .all()
+    ]
+    if not doc_ids:
+        return []
+    stmts = (
+        db.query(FinancialStatement)
+        .filter(
+            FinancialStatement.document_id.in_(doc_ids),
+            FinancialStatement.investment_id.is_(None),
+        )
+        .order_by(FinancialStatement.created_at.desc())
+        .all()
+    )
+    return [
+        {
+            "id": s.id,
+            "document_id": s.document_id,
+            "statement_type": s.statement_type,
+            "period": s.period,
+            "review_status": s.review_status,
+        }
+        for s in stmts
+    ]
