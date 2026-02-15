@@ -11,6 +11,9 @@ from app.financial_parsing.consolidation.aggregation import (
     group_by_investment_and_date,
     align_line_items_across_periods,
 )
+from app.financial_parsing.consolidation.change_detection import (
+    build_change_detection_dataset,
+)
 from app.financial_parsing.consolidation.normalization import (
     normalize_all_for_investment,
 )
@@ -71,6 +74,15 @@ def get_financial_trends(
     }
 
 
+@router.get("/financials/{investment_id}/changes")
+def get_period_changes(
+    investment_id: int,
+    db: Session = Depends(get_db),
+):
+    """Get period-over-period changes for an investment."""
+    return build_change_detection_dataset(db, investment_id)
+
+
 @router.post("/financials/{investment_id}/normalize")
 def normalize_investment_labels(
     investment_id: int,
@@ -106,10 +118,13 @@ def list_investment_statements(
 def export_investment_statements(
     investment_id: int,
     background_tasks: BackgroundTasks,
+    include_valuation: bool = False,
     db: Session = Depends(get_db),
 ):
     """Export all statements for an investment to Excel (statement view)."""
-    tmp_path = service.export_investment_statements_to_excel(db, investment_id)
+    tmp_path = service.export_investment_statements_to_excel(
+        db, investment_id, include_valuation=include_valuation,
+    )
     background_tasks.add_task(os.unlink, tmp_path)
     return FileResponse(
         path=tmp_path,
@@ -122,6 +137,7 @@ def export_investment_statements(
 def export_investment_comparison(
     investment_id: int,
     background_tasks: BackgroundTasks,
+    include_valuation: bool = False,
     db: Session = Depends(get_db),
 ):
     """Export period comparison data for an investment to Excel."""

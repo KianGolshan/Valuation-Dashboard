@@ -2,6 +2,8 @@ import base64
 import json
 import logging
 import tempfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 from pathlib import Path
 
 import fitz  # PyMuPDF
@@ -39,6 +41,8 @@ Each line_item must have:
 - "value": numeric value (parentheses mean negative, e.g., "(500)" = -500). null if no value.
 - "is_total": true if this is a total/subtotal line
 - "indent_level": 0 for top-level, 1 for indented, 2 for double-indented, etc.
+- "source_page": page number (integer) where this line item appears
+- "extraction_confidence": confidence 0.0-1.0 for this extraction
 
 Canonical categories for income_statement:
 revenue, cost_of_revenue, gross_profit, operating_expenses, research_and_development,
@@ -120,6 +124,57 @@ def _extract_chunks(pdf_path: str) -> list[dict]:
     return chunks
 
 
+def _repair_truncated_json(raw: str) -> str:
+    """Attempt to repair JSON truncated by max_tokens by finding last valid parse point."""
+    # Try parsing as-is first
+    try:
+        json.loads(raw)
+        return raw
+    except json.JSONDecodeError:
+        pass
+
+    # Strategy: find the last complete JSON object in the array by scanning for
+    # closing braces at the right nesting depth, then close remaining brackets.
+    # Track state precisely including string escaping.
+    stack = []  # track nesting: '[' or '{'
+    in_string = False
+    escape = False
+    last_complete_obj_end = 0  # position after last '}' that closes a top-level-ish object
+
+    for i, ch in enumerate(raw):
+        if escape:
+            escape = False
+            continue
+        if ch == '\\' and in_string:
+            escape = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+
+        if ch in ('[', '{'):
+            stack.append(ch)
+        elif ch == ']':
+            if stack and stack[-1] == '[':
+                stack.pop()
+        elif ch == '}':
+            if stack and stack[-1] == '{':
+                stack.pop()
+                # If we're back to depth 1 (inside the outer array), this is a complete object
+                if len(stack) == 1 and stack[0] == '[':
+                    last_complete_obj_end = i + 1
+
+    if last_complete_obj_end == 0:
+        # Couldn't find any complete object — return empty array
+        return "[]"
+
+    # Take up to the last complete object, then close the outer array
+    repaired = raw[:last_complete_obj_end].rstrip().rstrip(',') + ']'
+    return repaired
+
+
 def _call_claude(chunk: dict, client: anthropic.Anthropic) -> list[dict]:
     """Send chunk to Claude using images (always) + text (when available)."""
     # Build content blocks: images first, then the prompt
@@ -144,10 +199,12 @@ def _call_claude(chunk: dict, client: anthropic.Anthropic) -> list[dict]:
 
     response = client.messages.create(
         model=settings.ANTHROPIC_MODEL,
-        max_tokens=8192,
+        max_tokens=16384,
         messages=[{"role": "user", "content": content}],
     )
     raw = response.content[0].text.strip()
+    stop_reason = response.stop_reason
+
     # Strip markdown code fences if present
     if raw.startswith("```"):
         lines = raw.split("\n")
@@ -157,7 +214,21 @@ def _call_claude(chunk: dict, client: anthropic.Anthropic) -> list[dict]:
         raw = "\n".join(lines)
     if not raw:
         return []
-    return json.loads(raw)
+
+    # If truncated (hit max_tokens), attempt repair
+    if stop_reason == "end_turn":
+        return json.loads(raw)
+
+    logger.warning(
+        "Claude response truncated (stop_reason=%s, len=%d) for pages %s-%s, attempting repair",
+        stop_reason, len(raw), chunk["start_page"], chunk["end_page"],
+    )
+    repaired = _repair_truncated_json(raw)
+    try:
+        return json.loads(repaired)
+    except json.JSONDecodeError as e:
+        logger.error("JSON repair failed for pages %s-%s: %s", chunk["start_page"], chunk["end_page"], e)
+        raise
 
 
 def _merge_statements(all_results: list[list[dict]]) -> list[dict]:
@@ -184,20 +255,31 @@ def run_parsing(job_id: int, pdf_path: str, chunks: list[dict]):
         client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
         all_results: list[list[dict]] = []
         errors: list[str] = []
+        completed = 0
 
-        for chunk in chunks:
-            try:
-                result = _call_claude(chunk, client)
-                all_results.append(result)
-            except Exception as e:
-                logger.error("Chunk %d-%d failed: %s", chunk["start_page"], chunk["end_page"], e)
-                errors.append(f"Pages {chunk['start_page']}-{chunk['end_page']}: {e}")
+        def _process_chunk(chunk):
+            return _call_claude(chunk, client)
 
-            # Update progress
-            job = db.query(ParseJob).get(job_id)
-            if job:
-                job.completed_chunks = job.completed_chunks + 1
-                db.commit()
+        max_workers = min(settings.PARSING_MAX_CONCURRENT, len(chunks))
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_chunk = {
+                executor.submit(_process_chunk, chunk): chunk for chunk in chunks
+            }
+            for future in as_completed(future_to_chunk):
+                chunk = future_to_chunk[future]
+                try:
+                    result = future.result()
+                    all_results.append(result)
+                except Exception as e:
+                    logger.error("Chunk %d-%d failed: %s", chunk["start_page"], chunk["end_page"], e)
+                    errors.append(f"Pages {chunk['start_page']}-{chunk['end_page']}: {e}")
+
+                # Update progress
+                completed += 1
+                job = db.query(ParseJob).get(job_id)
+                if job:
+                    job.completed_chunks = completed
+                    db.commit()
 
         if not all_results:
             job = db.query(ParseJob).get(job_id)
@@ -232,6 +314,8 @@ def run_parsing(job_id: int, pdf_path: str, chunks: list[dict]):
             db.flush()
 
             for idx, item_data in enumerate(stmt_data.get("line_items", [])):
+                bbox_raw = item_data.get("source_bbox")
+                bbox_str = json.dumps(bbox_raw) if bbox_raw else None
                 li = LineItem(
                     statement_id=stmt.id,
                     category=item_data.get("category", "other"),
@@ -240,6 +324,11 @@ def run_parsing(job_id: int, pdf_path: str, chunks: list[dict]):
                     is_total=item_data.get("is_total", False),
                     indent_level=item_data.get("indent_level", 0),
                     sort_order=item_data.get("sort_order", idx),
+                    source_page=item_data.get("source_page"),
+                    source_bbox=bbox_str,
+                    extraction_confidence=item_data.get("extraction_confidence"),
+                    original_value=item_data.get("value"),
+                    extracted_text_snippet=item_data.get("extracted_text_snippet"),
                 )
                 db.add(li)
 
@@ -446,14 +535,130 @@ def export_to_excel(db: Session, document_id: int) -> str:
     return tmp.name
 
 
-def export_investment_statements_to_excel(db: Session, investment_id: int) -> str:
+CANONICAL_CATEGORY_ORDER = {
+    "income_statement": [
+        "revenue", "cost_of_revenue", "gross_profit", "operating_expenses",
+        "research_and_development", "selling_general_admin", "depreciation_amortization",
+        "operating_income", "interest_expense", "interest_income", "other_income_expense",
+        "income_before_tax", "income_tax", "net_income", "earnings_per_share", "other",
+    ],
+    "balance_sheet": [
+        "cash_and_equivalents", "short_term_investments", "accounts_receivable", "inventory",
+        "other_current_assets", "total_current_assets", "property_plant_equipment", "goodwill",
+        "intangible_assets", "long_term_investments", "other_non_current_assets", "total_assets",
+        "accounts_payable", "short_term_debt", "accrued_liabilities", "other_current_liabilities",
+        "total_current_liabilities", "long_term_debt", "other_non_current_liabilities",
+        "total_liabilities", "common_stock", "retained_earnings", "treasury_stock",
+        "other_equity", "total_stockholders_equity", "total_liabilities_and_equity", "other",
+    ],
+    "cash_flow": [
+        "net_income", "depreciation_amortization", "stock_based_compensation",
+        "changes_in_working_capital", "other_operating", "operating_cash_flow",
+        "capital_expenditures", "acquisitions", "purchases_of_investments",
+        "sales_of_investments", "other_investing", "investing_cash_flow",
+        "debt_issued", "debt_repaid", "shares_issued", "shares_repurchased",
+        "dividends_paid", "other_financing", "financing_cash_flow",
+        "net_change_in_cash", "beginning_cash", "ending_cash", "other",
+    ],
+}
+
+
+def _get_number_format(unit: str | None) -> str:
+    """Return Excel number format based on unit."""
+    if unit and ("thousand" in unit.lower() or "million" in unit.lower()):
+        return '#,##0'
+    return '#,##0.00'
+
+
+def _sort_line_items_canonical(line_items, stmt_type: str):
+    """Sort line items by canonical category order, preserving sort_order within category."""
+    order = CANONICAL_CATEGORY_ORDER.get(stmt_type, [])
+    order_map = {cat: i for i, cat in enumerate(order)}
+
+    def sort_key(li):
+        cat_idx = order_map.get(li.category, 999)
+        return (cat_idx, li.sort_order)
+
+    return sorted(line_items, key=sort_key)
+
+
+def _add_metadata_sheet(wb: Workbook, investment_name: str, statements, currency: str | None, unit: str | None):
+    """Add a Metadata sheet as the first sheet."""
+    ws = wb.create_sheet(title="Metadata", index=0)
+    ws.append(["Investment Name", investment_name])
+    ws.append(["Export Date", datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")])
+    ws.append(["Currency", currency or "Not specified"])
+    ws.append(["Units", unit or "Not specified"])
+    ws.append(["Statement Count", len(statements)])
+
+    # Period range
+    dates = [s.reporting_date or s.period_end_date for s in statements if s.reporting_date or s.period_end_date]
+    if dates:
+        ws.append(["Period Range", f"{min(dates)} to {max(dates)}"])
+
+    # Style
+    for row in ws.iter_rows(min_row=1, max_row=ws.max_row, max_col=2):
+        row[0].font = Font(bold=True)
+    ws.column_dimensions["A"].width = 20
+    ws.column_dimensions["B"].width = 40
+
+
+def _add_valuation_sheet(wb: Workbook, db: Session, investment_id: int):
+    """Add optional Valuation sheet."""
+    from app.valuations.service import get_latest_valuation
+    record = get_latest_valuation(db, investment_id)
+    if not record:
+        return
+
+    ws = wb.create_sheet(title="Valuation")
+    fields = [
+        ("Valuation Date", record.valuation_date),
+        ("Methodology", record.methodology),
+        ("Revenue Multiple", record.revenue_multiple),
+        ("EBITDA Multiple", record.ebitda_multiple),
+        ("Discount Rate", f"{record.discount_rate}%" if record.discount_rate else None),
+        ("Implied Enterprise Value", record.implied_enterprise_value),
+        ("Implied Equity Value", record.implied_equity_value),
+        ("Confidence", record.confidence_flag),
+        ("Analyst Notes", record.analyst_notes),
+    ]
+    for label, value in fields:
+        ws.append([label, value])
+
+    for row in ws.iter_rows(min_row=1, max_row=ws.max_row, max_col=2):
+        row[0].font = Font(bold=True)
+    ws.column_dimensions["A"].width = 25
+    ws.column_dimensions["B"].width = 40
+
+    # Number format for value cells
+    for row_idx in [6, 7]:  # EV and equity value rows
+        cell = ws.cell(row=row_idx, column=2)
+        if cell.value is not None:
+            cell.number_format = '#,##0'
+
+
+def export_investment_statements_to_excel(
+    db: Session, investment_id: int, include_valuation: bool = False,
+) -> str:
     """Export all statements for an investment (statement view) to Excel."""
     statements = get_investment_financials(db, investment_id)
     if not statements:
         raise not_found("No financial statements found for this investment")
 
+    # Determine currency and unit from statements
+    currency = next((s.currency for s in statements if s.currency), None)
+    unit = next((s.unit for s in statements if s.unit), None)
+    num_fmt = _get_number_format(unit)
+
+    # Investment name
+    inv = db.query(Investment).filter(Investment.id == investment_id).first()
+    inv_name = inv.investment_name if inv else f"Investment {investment_id}"
+
     wb = Workbook()
     wb.remove(wb.active)
+
+    # Metadata sheet
+    _add_metadata_sheet(wb, inv_name, statements, currency, unit)
 
     type_labels = {
         "income_statement": "Income Statement",
@@ -482,6 +687,7 @@ def export_investment_statements_to_excel(db: Session, investment_id: int) -> st
         ws.cell(row=1, column=1).alignment = Alignment(horizontal="left")
 
         template_stmt = max(stmts, key=lambda s: len(s.line_items))
+        sorted_items = _sort_line_items_canonical(template_stmt.line_items, stmt_type)
 
         value_map: dict[tuple[int, str], float | None] = {}
         for stmt in stmts:
@@ -490,7 +696,7 @@ def export_investment_statements_to_excel(db: Session, investment_id: int) -> st
                 display_val = li.edited_value if li.edited_value is not None else li.value
                 value_map[(stmt.id, display_lbl)] = display_val
 
-        for li in template_stmt.line_items:
+        for li in sorted_items:
             indent = "  " * li.indent_level
             display_lbl = li.edited_label if li.edited_label is not None else li.label
             row_data = [f"{indent}{display_lbl}"]
@@ -503,7 +709,7 @@ def export_investment_statements_to_excel(db: Session, investment_id: int) -> st
                 for col_idx in range(1, len(headers) + 1):
                     ws.cell(row=row_num, column=col_idx).font = Font(bold=True)
             for col_idx in range(2, len(headers) + 1):
-                ws.cell(row=row_num, column=col_idx).number_format = '#,##0.00'
+                ws.cell(row=row_num, column=col_idx).number_format = num_fmt
 
         for col in ws.columns:
             max_len = 0
@@ -515,6 +721,10 @@ def export_investment_statements_to_excel(db: Session, investment_id: int) -> st
                 except Exception:
                     pass
             ws.column_dimensions[col_letter].width = min(max_len + 4, 50)
+
+    # Optional valuation sheet
+    if include_valuation:
+        _add_valuation_sheet(wb, db, investment_id)
 
     tmp = tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False)
     wb.save(tmp.name)
@@ -625,6 +835,7 @@ def lock_statement(db: Session, statement_id: int) -> FinancialStatement:
 def edit_line_item(
     db: Session, line_item_id: int,
     edited_label: str | None = None, edited_value: float | None = None,
+    user: str | None = None,
 ) -> LineItem:
     li = db.query(LineItem).filter(LineItem.id == line_item_id).first()
     if not li:
@@ -641,6 +852,7 @@ def edit_line_item(
         db.add(EditLog(
             line_item_id=li.id, field="label",
             old_value=li.edited_label or li.label, new_value=edited_label,
+            user=user,
         ))
         li.edited_label = edited_label
 
@@ -649,11 +861,14 @@ def edit_line_item(
             line_item_id=li.id, field="value",
             old_value=str(li.edited_value if li.edited_value is not None else li.value),
             new_value=str(edited_value),
+            user=user,
         ))
         li.edited_value = edited_value
 
     if edited_label is not None or edited_value is not None:
         li.is_user_modified = True
+        li.last_modified_by = user
+        li.last_modified_at = datetime.utcnow()
 
     db.commit()
     db.refresh(li)
@@ -716,3 +931,110 @@ def suggest_investment_mapping(db: Session, statement_id: int) -> dict:
         "period": stmt.period,
         "period_end_date": stmt.period_end_date,
     }
+
+
+# ── Provenance / Source Context ─────────────────────────────────────────
+
+def get_line_item_source_context(db: Session, line_item_id: int) -> dict:
+    """Return page image (b64 PNG), bbox, snippet, confidence, and edit history for a line item."""
+    li = db.query(LineItem).filter(LineItem.id == line_item_id).first()
+    if not li:
+        raise not_found("Line item not found")
+
+    stmt = db.query(FinancialStatement).filter(
+        FinancialStatement.id == li.statement_id
+    ).first()
+    doc = db.query(Document).filter(Document.id == stmt.document_id).first() if stmt else None
+
+    page_image_b64 = None
+    if doc and li.source_page and Path(doc.file_path).exists():
+        try:
+            pdf_doc = fitz.open(doc.file_path)
+            page_idx = li.source_page - 1
+            if 0 <= page_idx < len(pdf_doc):
+                page = pdf_doc[page_idx]
+                pix = page.get_pixmap(dpi=150)
+                page_image_b64 = base64.standard_b64encode(pix.tobytes("png")).decode("ascii")
+            pdf_doc.close()
+        except Exception as e:
+            logger.warning("Failed to render page image for line item %d: %s", line_item_id, e)
+
+    # Edit history
+    edit_history = db.query(EditLog).filter(
+        EditLog.line_item_id == line_item_id
+    ).order_by(EditLog.created_at.desc()).all()
+
+    bbox = None
+    if li.source_bbox:
+        try:
+            bbox = json.loads(li.source_bbox)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    return {
+        "line_item_id": li.id,
+        "source_page": li.source_page,
+        "source_bbox": bbox,
+        "extraction_confidence": li.extraction_confidence,
+        "extracted_text_snippet": li.extracted_text_snippet,
+        "original_value": li.original_value,
+        "current_value": li.edited_value if li.edited_value is not None else li.value,
+        "is_user_modified": li.is_user_modified,
+        "last_modified_by": li.last_modified_by,
+        "last_modified_at": li.last_modified_at.isoformat() if li.last_modified_at else None,
+        "page_image_b64": page_image_b64,
+        "edit_history": [
+            {
+                "id": log.id,
+                "field": log.field,
+                "old_value": log.old_value,
+                "new_value": log.new_value,
+                "user": log.user,
+                "created_at": log.created_at.isoformat(),
+            }
+            for log in edit_history
+        ],
+    }
+
+
+def get_statement_provenance(db: Session, statement_id: int) -> list[dict]:
+    """Return provenance summary for all line items in a statement."""
+    stmt = get_statement(db, statement_id)
+    items = []
+    for li in stmt.line_items:
+        bbox = None
+        if li.source_bbox:
+            try:
+                bbox = json.loads(li.source_bbox)
+            except (json.JSONDecodeError, TypeError):
+                pass
+        items.append({
+            "line_item_id": li.id,
+            "label": li.edited_label or li.label,
+            "value": li.edited_value if li.edited_value is not None else li.value,
+            "source_page": li.source_page,
+            "source_bbox": bbox,
+            "extraction_confidence": li.extraction_confidence,
+            "extracted_text_snippet": li.extracted_text_snippet,
+            "is_user_modified": li.is_user_modified,
+            "original_value": li.original_value,
+        })
+    return items
+
+
+def confirm_line_item(db: Session, line_item_id: int, user: str | None = None) -> LineItem:
+    """Mark a line item as confirmed (user-verified)."""
+    li = db.query(LineItem).filter(LineItem.id == line_item_id).first()
+    if not li:
+        raise not_found("Line item not found")
+    li.extraction_confidence = 1.0
+    li.last_modified_by = user
+    li.last_modified_at = datetime.utcnow()
+    db.add(EditLog(
+        line_item_id=li.id, field="confidence",
+        old_value=str(li.extraction_confidence), new_value="1.0",
+        user=user,
+    ))
+    db.commit()
+    db.refresh(li)
+    return li

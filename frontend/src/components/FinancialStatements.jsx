@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { api } from "../api";
+import TracePanel from "./TracePanel";
 
 const STATEMENT_TABS = [
   { key: "income_statement", label: "Income Statement" },
@@ -81,7 +82,7 @@ function EditableValue({ item, onSave, locked }) {
   );
 }
 
-function StatementTable({ statement, onSaveItem, onReview, onLock, investmentId }) {
+function StatementTable({ statement, onSaveItem, onReview, onLock, investmentId, onTrace }) {
   const [mapping, setMapping] = useState(false);
 
   if (!statement || !statement.line_items || statement.line_items.length === 0) {
@@ -164,6 +165,7 @@ function StatementTable({ statement, onSaveItem, onReview, onLock, investmentId 
             <tr className="bg-gray-50 text-left text-gray-500 uppercase text-xs">
               <th className="px-4 py-3">Line Item</th>
               <th className="px-4 py-3 text-right">Value</th>
+              <th className="px-4 py-3 w-8"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
@@ -191,6 +193,17 @@ function StatementTable({ statement, onSaveItem, onReview, onLock, investmentId 
                     onSave={onSaveItem}
                     locked={statement.locked}
                   />
+                </td>
+                <td className="px-1 py-2 text-center">
+                  <button
+                    onClick={() => onTrace(item.id)}
+                    className="text-gray-400 hover:text-purple-600 transition"
+                    title="View extraction trace"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </button>
                 </td>
               </tr>
             ))}
@@ -278,6 +291,7 @@ export default function FinancialStatements({
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("income_statement");
   const [parseHistory, setParseHistory] = useState([]);
+  const [tracingItemId, setTracingItemId] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -547,6 +561,7 @@ export default function FinancialStatements({
                     onReview={handleReview}
                     onLock={handleLock}
                     investmentId={investmentId}
+                    onTrace={setTracingItemId}
                   />
                 ))}
               </div>
@@ -554,6 +569,13 @@ export default function FinancialStatements({
           </div>
         )}
       </div>
+
+      {tracingItemId && (
+        <TracePanel
+          lineItemId={tracingItemId}
+          onClose={() => setTracingItemId(null)}
+        />
+      )}
     </div>
   );
 }
