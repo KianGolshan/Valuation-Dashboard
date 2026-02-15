@@ -164,17 +164,66 @@ export const api = {
       method: "POST",
     }),
 
-  exportStatementsUrl: (investmentId) =>
-    `${API}/dashboard/financials/${investmentId}/export/statements`,
+  exportStatementsUrl: (investmentId, includeValuation = false) =>
+    `${API}/dashboard/financials/${investmentId}/export/statements${includeValuation ? "?include_valuation=true" : ""}`,
 
-  exportComparisonUrl: (investmentId) =>
-    `${API}/dashboard/financials/${investmentId}/export/comparison`,
+  exportComparisonUrl: (investmentId, includeValuation = false) =>
+    `${API}/dashboard/financials/${investmentId}/export/comparison${includeValuation ? "?include_valuation=true" : ""}`,
 
   getDashboardStatements: (investmentId, statementType = null) => {
     let url = `${API}/dashboard/financials/${investmentId}/statements`;
     if (statementType) url += `?statement_type=${statementType}`;
     return request(url);
   },
+
+  // Valuations
+  createValuation: (investmentId, data) =>
+    request(`${API}/investments/${investmentId}/valuations/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }),
+
+  listValuations: (investmentId) =>
+    request(`${API}/investments/${investmentId}/valuations/`),
+
+  getLatestValuation: (investmentId) =>
+    request(`${API}/investments/${investmentId}/valuations/latest`),
+
+  updateValuation: (investmentId, valuationId, data) =>
+    request(`${API}/investments/${investmentId}/valuations/${valuationId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }),
+
+  deleteValuation: (investmentId, valuationId) =>
+    request(`${API}/investments/${investmentId}/valuations/${valuationId}`, {
+      method: "DELETE",
+    }),
+
+  // Provenance
+  getLineItemSourceContext: (lineItemId) =>
+    request(`${API}/financials/line-items/${lineItemId}/source-context`),
+
+  getStatementProvenance: (statementId) =>
+    request(`${API}/financials/statements/${statementId}/provenance`),
+
+  confirmLineItem: (lineItemId, user = null) =>
+    request(`${API}/financials/line-items/${lineItemId}/confirm${user ? `?user=${encodeURIComponent(user)}` : ""}`, {
+      method: "POST",
+    }),
+
+  // Period Changes
+  getPeriodChanges: (investmentId) =>
+    request(`${API}/dashboard/financials/${investmentId}/changes`),
+
+  // Priority Queue
+  getPriorityQueue: () =>
+    request(`${API}/priority-queue/`),
+
+  getInvestmentPriorityQueue: (investmentId) =>
+    request(`${API}/priority-queue/investments/${investmentId}`),
 
   // Search
   search: (query, filters = {}) => {

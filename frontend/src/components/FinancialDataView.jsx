@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Fragment } from "react";
 import { api } from "../api";
+import PriorityQueueWidget from "./PriorityQueue";
 
 const STATEMENT_TABS = [
   { key: "income_statement", label: "Income Statement" },
@@ -186,6 +187,114 @@ function EditableCell({ item, field, onSave, locked }) {
     >
       {display || <span className="text-gray-300">-</span>}
     </span>
+  );
+}
+
+function PeriodChangesTable({ data }) {
+  const [significantOnly, setSignificantOnly] = useState(false);
+
+  if (!data || !data.period_pairs || data.period_pairs.length === 0) {
+    return (
+      <div className="text-center py-8 text-gray-400">
+        Need at least two periods to show changes.
+      </div>
+    );
+  }
+
+  const rows = significantOnly
+    ? data.rows.filter((row) =>
+        Object.values(row.changes || {}).some((c) => c.significant)
+      )
+    : data.rows;
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-3">
+        <label className="flex items-center gap-1 text-xs text-gray-600 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={significantOnly}
+            onChange={(e) => setSignificantOnly(e.target.checked)}
+            className="rounded border-gray-300"
+          />
+          Significant changes only
+        </label>
+      </div>
+      <div className="bg-white rounded-lg shadow overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="sticky top-0 z-10">
+            <tr className="bg-gray-50 text-left text-gray-500 uppercase text-xs">
+              <th className="px-4 py-3 sticky left-0 bg-gray-50 z-20">Line Item</th>
+              {data.period_pairs.map(([from, to]) => (
+                <th key={`${from}-${to}`} className="px-4 py-3 text-right whitespace-nowrap" colSpan={2}>
+                  {from} &rarr; {to}
+                </th>
+              ))}
+            </tr>
+            <tr className="bg-gray-50 text-xs text-gray-400">
+              <th className="px-4 py-1 sticky left-0 bg-gray-50 z-20"></th>
+              {data.period_pairs.map(([from, to]) => (
+                <Fragment key={`${from}-${to}-sub`}>
+                  <th className="px-4 py-1 text-right">Abs</th>
+                  <th className="px-4 py-1 text-right">%</th>
+                </Fragment>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {rows.map((row, idx) => (
+              <tr
+                key={idx}
+                className={row.is_total ? "bg-gray-50 font-bold" : "hover:bg-gray-50"}
+              >
+                <td
+                  className="px-4 py-2 sticky left-0 bg-inherit whitespace-nowrap"
+                  style={{ paddingLeft: `${1 + row.indent_level * 1.25}rem` }}
+                >
+                  {row.canonical_label}
+                </td>
+                {data.period_pairs.map(([from, to]) => {
+                  const pairKey = `${from} -> ${to}`;
+                  const change = row.changes?.[pairKey] || {};
+                  const bgColor = change.significant
+                    ? change.absolute > 0
+                      ? "bg-green-50"
+                      : "bg-red-50"
+                    : "";
+                  const textColor = change.absolute != null
+                    ? change.absolute > 0
+                      ? "text-green-700"
+                      : change.absolute < 0
+                        ? "text-red-700"
+                        : ""
+                    : "text-gray-300";
+                  return (
+                    <Fragment key={pairKey}>
+                      <td className={`px-4 py-2 text-right font-mono ${textColor} ${bgColor}`}>
+                        {change.absolute != null ? (
+                          <>
+                            {change.absolute > 0 ? "+" : ""}
+                            {formatNumber(change.absolute)}
+                          </>
+                        ) : "—"}
+                      </td>
+                      <td className={`px-4 py-2 text-right font-mono ${textColor} ${bgColor}`}>
+                        {change.percent != null ? (
+                          <>
+                            {change.percent > 0 ? "+" : ""}
+                            {change.percent.toFixed(1)}%
+                          </>
+                        ) : "—"}
+                      </td>
+                    </Fragment>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
@@ -414,24 +523,27 @@ export default function FinancialDataView({ investmentId, investmentName }) {
   const [statements, setStatements] = useState([]);
   const [dashboardData, setDashboardData] = useState(null);
   const [trendsData, setTrendsData] = useState(null);
+  const [changesData, setChangesData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("income_statement");
-  const [viewMode, setViewMode] = useState("statements"); // statements | comparison | trends
+  const [viewMode, setViewMode] = useState("statements"); // statements | comparison | trends | changes
   const [showEdited, setShowEdited] = useState(true);
   const [showNormalized, setShowNormalized] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [stmts, dashboard, trends] = await Promise.all([
+      const [stmts, dashboard, trends, changes] = await Promise.all([
         api.getInvestmentFinancials(investmentId),
         api.getDashboardFinancials(investmentId),
         api.getFinancialTrends(investmentId),
+        api.getPeriodChanges(investmentId),
       ]);
       setStatements(stmts);
       setDashboardData(dashboard);
       setTrendsData(trends);
+      setChangesData(changes);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -489,6 +601,8 @@ export default function FinancialDataView({ investmentId, investmentName }) {
   );
   const comparisonData =
     dashboardData?.statement_types?.[activeTab] || null;
+  const changesForTab =
+    changesData?.statement_types?.[activeTab] || null;
 
   return (
     <div>
@@ -519,9 +633,10 @@ export default function FinancialDataView({ investmentId, investmentName }) {
           >
             <option value="statements">Statement View</option>
             <option value="comparison">Period Comparison</option>
+            <option value="changes">Period Changes</option>
             <option value="trends">Key Trends</option>
           </select>
-          {statements.length > 0 && (viewMode === "statements" || viewMode === "comparison") && (
+          {statements.length > 0 && (viewMode === "statements" || viewMode === "comparison" || viewMode === "changes") && (
             <a
               href={
                 viewMode === "comparison"
@@ -541,6 +656,11 @@ export default function FinancialDataView({ investmentId, investmentName }) {
           {error}
           <button onClick={() => setError("")} className="ml-2 font-bold">&times;</button>
         </div>
+      )}
+
+      {/* Priority Queue */}
+      {!loading && (
+        <PriorityQueueWidget investmentId={investmentId} />
       )}
 
       {/* Context panel */}
@@ -598,6 +718,10 @@ export default function FinancialDataView({ investmentId, investmentName }) {
 
       {!loading && viewMode === "comparison" && (
         <ComparisonTable data={comparisonData} />
+      )}
+
+      {!loading && viewMode === "changes" && (
+        <PeriodChangesTable data={changesForTab} />
       )}
 
       {!loading && viewMode === "statements" && (

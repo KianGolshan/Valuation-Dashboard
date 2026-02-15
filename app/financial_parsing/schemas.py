@@ -17,11 +17,20 @@ class LineItemResponse(BaseModel):
     edited_value: float | None = None
     is_user_modified: bool = False
     canonical_label: str | None = None
+    # Provenance fields
+    source_page: int | None = None
+    source_bbox: str | None = None
+    extraction_confidence: float | None = None
+    original_value: float | None = None
+    extracted_text_snippet: str | None = None
+    last_modified_by: str | None = None
+    last_modified_at: datetime | None = None
 
 
 class LineItemEditRequest(BaseModel):
     edited_label: str | None = None
     edited_value: float | None = None
+    user: str | None = None
 
 
 class FinancialStatementResponse(BaseModel):
@@ -84,4 +93,5 @@ class EditLogResponse(BaseModel):
     field: str
     old_value: str | None
     new_value: str | None
+    user: str | None = None
     created_at: datetime

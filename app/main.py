@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import Base, engine
+from app.migrations import startup_migrations
 from app.investments.router import router as investments_router
 from app.documents.router import router as documents_router
 from app.documents.router import all_documents_router
@@ -12,10 +13,13 @@ from app.securities.router import router as securities_router
 from app.financial_parsing.router import router as financial_parsing_router
 from app.financial_parsing.router import standalone_router as financial_standalone_router
 from app.financial_parsing.dashboard_router import router as dashboard_router
+from app.valuations.router import router as valuations_router
+from app.financial_parsing.priority_router import router as priority_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    startup_migrations(engine)
     Base.metadata.create_all(bind=engine)
     yield
 
@@ -42,6 +46,8 @@ app.include_router(securities_router, prefix="/api/v1")
 app.include_router(financial_parsing_router, prefix="/api/v1")
 app.include_router(financial_standalone_router, prefix="/api/v1")
 app.include_router(dashboard_router, prefix="/api/v1")
+app.include_router(valuations_router, prefix="/api/v1")
+app.include_router(priority_router, prefix="/api/v1")
 
 
 @app.get("/health")

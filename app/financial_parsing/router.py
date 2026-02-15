@@ -150,7 +150,7 @@ def edit_line_item(
     body: LineItemEditRequest,
     db: Session = Depends(get_db),
 ):
-    return service.edit_line_item(db, line_item_id, body.edited_label, body.edited_value)
+    return service.edit_line_item(db, line_item_id, body.edited_label, body.edited_value, body.user)
 
 
 @standalone_router.get(
@@ -199,3 +199,33 @@ def get_investment_financials(
     db: Session = Depends(get_db),
 ):
     return service.get_investment_financials(db, investment_id)
+
+
+# ── Provenance / Source Context ────────────────────────────────────────
+
+@standalone_router.get("/financials/line-items/{line_item_id}/source-context")
+def get_line_item_source_context(
+    line_item_id: int,
+    db: Session = Depends(get_db),
+):
+    return service.get_line_item_source_context(db, line_item_id)
+
+
+@standalone_router.get("/financials/statements/{statement_id}/provenance")
+def get_statement_provenance(
+    statement_id: int,
+    db: Session = Depends(get_db),
+):
+    return service.get_statement_provenance(db, statement_id)
+
+
+@standalone_router.post(
+    "/financials/line-items/{line_item_id}/confirm",
+    response_model=LineItemResponse,
+)
+def confirm_line_item(
+    line_item_id: int,
+    db: Session = Depends(get_db),
+    user: str | None = None,
+):
+    return service.confirm_line_item(db, line_item_id, user)

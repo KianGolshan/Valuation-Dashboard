@@ -3,6 +3,8 @@ import { api } from "../api";
 import UploadModal from "./UploadModal";
 import DocumentViewer from "./DocumentViewer";
 import FinancialStatements from "./FinancialStatements";
+import ParseValidationPanel from "./ParseValidationPanel";
+import ValuationPanel from "./ValuationPanel";
 
 function formatSize(bytes) {
   if (bytes < 1024) return `${bytes} B`;
@@ -18,7 +20,7 @@ function formatCurrency(value) {
   }).format(value);
 }
 
-function DocumentTable({ documents, investmentId, onDelete, onView, onFinancials }) {
+function DocumentTable({ documents, investmentId, onDelete, onView, onFinancials, onValidate }) {
   if (documents.length === 0) {
     return (
       <div className="text-center py-12 text-gray-400">
@@ -69,12 +71,20 @@ function DocumentTable({ documents, investmentId, onDelete, onView, onFinancials
                     View
                   </button>
                   {doc.document_type?.toLowerCase() === ".pdf" && (
-                    <button
-                      onClick={() => onFinancials(doc)}
-                      className="text-purple-600 hover:text-purple-800 text-xs font-medium"
-                    >
-                      Financials
-                    </button>
+                    <>
+                      <button
+                        onClick={() => onFinancials(doc)}
+                        className="text-purple-600 hover:text-purple-800 text-xs font-medium"
+                      >
+                        Financials
+                      </button>
+                      <button
+                        onClick={() => onValidate(doc)}
+                        className="text-orange-600 hover:text-orange-800 text-xs font-medium"
+                      >
+                        Validate
+                      </button>
+                    </>
                   )}
                   <a
                     href={api.downloadUrl(investmentId, doc.id)}
@@ -111,6 +121,7 @@ export default function InvestmentPanel({
   const [error, setError] = useState("");
   const [viewerDoc, setViewerDoc] = useState(null);
   const [financialsDoc, setFinancialsDoc] = useState(null);
+  const [validatingDoc, setValidatingDoc] = useState(null);
 
   const selectedSecurity = selectedSecurityId
     ? (investment.securities || []).find((s) => s.id === selectedSecurityId)
@@ -208,6 +219,7 @@ export default function InvestmentPanel({
           onDelete={handleDeleteDoc}
           onView={setViewerDoc}
           onFinancials={setFinancialsDoc}
+          onValidate={setValidatingDoc}
         />
 
         {uploading && (
@@ -235,6 +247,14 @@ export default function InvestmentPanel({
             investmentId={investment.id}
             document={financialsDoc}
             onClose={() => setFinancialsDoc(null)}
+          />
+        )}
+
+        {validatingDoc && (
+          <ParseValidationPanel
+            investmentId={investment.id}
+            document={validatingDoc}
+            onClose={() => setValidatingDoc(null)}
           />
         )}
       </div>
@@ -340,6 +360,11 @@ export default function InvestmentPanel({
         </div>
       )}
 
+      {/* Valuations */}
+      <div className="mb-6">
+        <ValuationPanel investmentId={investment.id} />
+      </div>
+
       {/* Investment-level documents */}
       <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
         Investment-Level Documents
@@ -350,6 +375,7 @@ export default function InvestmentPanel({
         onDelete={handleDeleteDoc}
         onView={setViewerDoc}
         onFinancials={setFinancialsDoc}
+        onValidate={setValidatingDoc}
       />
 
       {uploading && (
@@ -376,6 +402,14 @@ export default function InvestmentPanel({
           investmentId={investment.id}
           document={financialsDoc}
           onClose={() => setFinancialsDoc(null)}
+        />
+      )}
+
+      {validatingDoc && (
+        <ParseValidationPanel
+          investmentId={investment.id}
+          document={validatingDoc}
+          onClose={() => setValidatingDoc(null)}
         />
       )}
     </div>
