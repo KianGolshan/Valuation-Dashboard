@@ -1,3 +1,5 @@
+import os
+
 from pydantic_settings import BaseSettings
 from pathlib import Path
 
@@ -14,7 +16,17 @@ class Settings(BaseSettings):
     PARSING_CHUNK_OVERLAP: int = 5
     PARSING_MAX_CONCURRENT: int = 3
 
-    model_config = {"env_prefix": "FINANCE_"}
+    FMP_API_KEY: str = ""
+
+    model_config = {"env_prefix": "FINANCE_", "env_file": ".env", "extra": "ignore"}
 
 
-settings = Settings()
+_settings = Settings()
+# FMP_API_KEY uses no prefix in .env — load it directly
+if not _settings.FMP_API_KEY:
+    from dotenv import dotenv_values
+    _env = dotenv_values(".env")
+    if _env.get("FMP_API_KEY"):
+        _settings.FMP_API_KEY = _env["FMP_API_KEY"]
+
+settings = _settings
