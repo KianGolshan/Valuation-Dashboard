@@ -234,6 +234,72 @@ export const api = {
   getUnmappedStatements: (investmentId) =>
     request(`${API}/dashboard/financials/${investmentId}/unmapped-statements`),
 
+  // Comparables — Profile
+  upsertProfile: (investmentId, data) =>
+    request(`${API}/investments/${investmentId}/profile`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }),
+
+  getProfile: (investmentId) =>
+    request(`${API}/investments/${investmentId}/profile`),
+
+  // Comparables — Comp Sets
+  createCompSet: (investmentId, data) =>
+    request(`${API}/investments/${investmentId}/comp-sets`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }),
+
+  listCompSets: (investmentId) =>
+    request(`${API}/investments/${investmentId}/comp-sets`),
+
+  updateCompSet: (compSetId, data) =>
+    request(`${API}/comp-sets/${compSetId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }),
+
+  deleteCompSet: (compSetId) =>
+    request(`${API}/comp-sets/${compSetId}`, { method: "DELETE" }),
+
+  // Comparables — Companies
+  addCompany: (compSetId, data) =>
+    request(`${API}/comp-sets/${compSetId}/companies`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }),
+
+  removeCompany: (compSetId, companyId) =>
+    request(`${API}/comp-sets/${compSetId}/companies/${companyId}`, {
+      method: "DELETE",
+    }),
+
+  updateCompany: (compSetId, companyId, data) =>
+    request(`${API}/comp-sets/${compSetId}/companies/${companyId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }),
+
+  // Comparables — Analysis & Export
+  getCompSetAnalysis: (compSetId) =>
+    request(`${API}/comp-sets/${compSetId}/analysis`),
+
+  exportCompSetUrl: (compSetId) =>
+    `${API}/comp-sets/${compSetId}/export`,
+
+  // Comparables — FMP & Benchmarks
+  searchFmp: (query) =>
+    request(`${API}/fmp/search?query=${encodeURIComponent(query)}`),
+
+  getBenchmarks: (sector) =>
+    request(`${API}/benchmarks/${encodeURIComponent(sector)}`),
+
   // Search
   search: (query, filters = {}) => {
     const params = new URLSearchParams({ q: query });

@@ -1,0 +1,65 @@
+{
+  "_note": "Illustrative private market benchmarks — not investment advice",
+  "sectors": {
+    "Enterprise SaaS": {
+      "ev_revenue": { "p25": 5.0, "median": 8.0, "p75": 14.0 },
+      "ev_ebitda": { "p25": 15.0, "median": 25.0, "p75": 40.0 },
+      "revenue_growth": { "p25": 15.0, "median": 30.0, "p75": 55.0 },
+      "gross_margin": { "p25": 65.0, "median": 75.0, "p75": 82.0 },
+      "by_stage": {
+        "Series A": { "ev_revenue": { "p25": 10.0, "median": 20.0, "p75": 40.0 }, "revenue_growth": { "p25": 80.0, "median": 150.0, "p75": 300.0 } },
+        "Series B": { "ev_revenue": { "p25": 8.0, "median": 15.0, "p75": 30.0 }, "revenue_growth": { "p25": 50.0, "median": 100.0, "p75": 200.0 } },
+        "Series C": { "ev_revenue": { "p25": 6.0, "median": 12.0, "p75": 20.0 }, "revenue_growth": { "p25": 30.0, "median": 60.0, "p75": 100.0 } },
+        "Growth": { "ev_revenue": { "p25": 4.0, "median": 8.0, "p75": 15.0 }, "revenue_growth": { "p25": 20.0, "median": 35.0, "p75": 60.0 } }
+      }
+    },
+    "Fintech": {
+      "ev_revenue": { "p25": 4.0, "median": 7.0, "p75": 12.0 },
+      "ev_ebitda": { "p25": 12.0, "median": 20.0, "p75": 35.0 },
+      "revenue_growth": { "p25": 20.0, "median": 40.0, "p75": 70.0 },
+      "gross_margin": { "p25": 50.0, "median": 65.0, "p75": 78.0 },
+      "by_stage": {
+        "Series A": { "ev_revenue": { "p25": 8.0, "median": 15.0, "p75": 30.0 }, "revenue_growth": { "p25": 70.0, "median": 120.0, "p75": 250.0 } },
+        "Series B": { "ev_revenue": { "p25": 6.0, "median": 12.0, "p75": 22.0 }, "revenue_growth": { "p25": 40.0, "median": 80.0, "p75": 150.0 } },
+        "Series C": { "ev_revenue": { "p25": 5.0, "median": 9.0, "p75": 16.0 }, "revenue_growth": { "p25": 25.0, "median": 50.0, "p75": 90.0 } },
+        "Growth": { "ev_revenue": { "p25": 3.0, "median": 6.0, "p75": 12.0 }, "revenue_growth": { "p25": 15.0, "median": 30.0, "p75": 50.0 } }
+      }
+    },
+    "Healthcare IT": {
+      "ev_revenue": { "p25": 3.5, "median": 6.0, "p75": 10.0 },
+      "ev_ebitda": { "p25": 10.0, "median": 18.0, "p75": 30.0 },
+      "revenue_growth": { "p25": 12.0, "median": 25.0, "p75": 45.0 },
+      "gross_margin": { "p25": 55.0, "median": 68.0, "p75": 78.0 },
+      "by_stage": {
+        "Series A": { "ev_revenue": { "p25": 7.0, "median": 12.0, "p75": 25.0 }, "revenue_growth": { "p25": 50.0, "median": 100.0, "p75": 200.0 } },
+        "Series B": { "ev_revenue": { "p25": 5.0, "median": 10.0, "p75": 18.0 }, "revenue_growth": { "p25": 35.0, "median": 60.0, "p75": 120.0 } },
+        "Series C": { "ev_revenue": { "p25": 4.0, "median": 7.0, "p75": 14.0 }, "revenue_growth": { "p25": 20.0, "median": 40.0, "p75": 70.0 } },
+        "Growth": { "ev_revenue": { "p25": 3.0, "median": 5.5, "p75": 10.0 }, "revenue_growth": { "p25": 10.0, "median": 22.0, "p75": 40.0 } }
+      }
+    },
+    "Consumer Tech": {
+      "ev_revenue": { "p25": 2.5, "median": 5.0, "p75": 10.0 },
+      "ev_ebitda": { "p25": 8.0, "median": 15.0, "p75": 28.0 },
+      "revenue_growth": { "p25": 15.0, "median": 35.0, "p75": 65.0 },
+      "gross_margin": { "p25": 45.0, "median": 60.0, "p75": 72.0 },
+      "by_stage": {
+        "Series A": { "ev_revenue": { "p25": 6.0, "median": 12.0, "p75": 25.0 }, "revenue_growth": { "p25": 80.0, "median": 150.0, "p75": 300.0 } },
+        "Series B": { "ev_revenue": { "p25": 4.0, "median": 9.0, "p75": 18.0 }, "revenue_growth": { "p25": 40.0, "median": 80.0, "p75": 160.0 } },
+        "Series C": { "ev_revenue": { "p25": 3.0, "median": 6.0, "p75": 12.0 }, "revenue_growth": { "p25": 25.0, "median": 45.0, "p75": 80.0 } },
+        "Growth": { "ev_revenue": { "p25": 2.0, "median": 4.5, "p75": 9.0 }, "revenue_growth": { "p25": 12.0, "median": 25.0, "p75": 45.0 } }
+      }
+    },
+    "Industrials": {
+      "ev_revenue": { "p25": 1.5, "median": 2.5, "p75": 4.5 },
+      "ev_ebitda": { "p25": 6.0, "median": 10.0, "p75": 16.0 },
+      "revenue_growth": { "p25": 5.0, "median": 12.0, "p75": 25.0 },
+      "gross_margin": { "p25": 25.0, "median": 38.0, "p75": 50.0 },
+      "by_stage": {
+        "Series A": { "ev_revenue": { "p25": 3.0, "median": 5.0, "p75": 10.0 }, "revenue_growth": { "p25": 30.0, "median": 60.0, "p75": 120.0 } },
+        "Series B": { "ev_revenue": { "p25": 2.5, "median": 4.0, "p75": 8.0 }, "revenue_growth": { "p25": 20.0, "median": 40.0, "p75": 80.0 } },
+        "Series C": { "ev_revenue": { "p25": 2.0, "median": 3.5, "p75": 6.0 }, "revenue_growth": { "p25": 10.0, "median": 25.0, "p75": 45.0 } },
+        "Growth": { "ev_revenue": { "p25": 1.5, "median": 2.5, "p75": 5.0 }, "revenue_growth": { "p25": 5.0, "median": 15.0, "p75": 30.0 } }
+      }
+    }
+  }
+}

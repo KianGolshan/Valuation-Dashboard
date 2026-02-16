@@ -5,6 +5,7 @@ import DocumentViewer from "./DocumentViewer";
 import FinancialStatements from "./FinancialStatements";
 import ParseValidationPanel from "./ParseValidationPanel";
 import ValuationPanel from "./ValuationPanel";
+import ComparablesPanel from "./ComparablesPanel";
 
 function formatSize(bytes) {
   if (bytes < 1024) return `${bytes} B`;
@@ -219,6 +220,12 @@ export default function InvestmentPanel({
   const [validatingDoc, setValidatingDoc] = useState(null);
   const [workflowData, setWorkflowData] = useState(null);
   const [workflowByDocId, setWorkflowByDocId] = useState({});
+  const [activeTab, setActiveTab] = useState("overview");
+
+  // Reset tab when investment changes
+  useEffect(() => {
+    setActiveTab("overview");
+  }, [investment.id]);
 
   const selectedSecurity = selectedSecurityId
     ? (investment.securities || []).find((s) => s.id === selectedSecurityId)
@@ -380,6 +387,11 @@ export default function InvestmentPanel({
   const secCount = investment.securities?.length || 0;
   const docCount = documents.length;
 
+  const TABS = [
+    { key: "overview", label: "Overview" },
+    { key: "comparables", label: "Comparables" },
+  ];
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -397,106 +409,134 @@ export default function InvestmentPanel({
             <p className="text-sm text-gray-400 mt-0.5">{investment.notes}</p>
           )}
         </div>
-        <button
-          onClick={() => setUploading(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded transition"
-        >
-          Upload Documents
-        </button>
-      </div>
-
-      {/* Summary stats */}
-      <div className="flex gap-4 mb-6">
-        <div className="bg-white rounded-lg shadow px-4 py-3 flex-1 text-center">
-          <p className="text-2xl font-bold text-gray-900">{secCount}</p>
-          <p className="text-xs text-gray-500 uppercase tracking-wide">Securities</p>
-        </div>
-        <div className="bg-white rounded-lg shadow px-4 py-3 flex-1 text-center">
-          <p className="text-2xl font-bold text-gray-900">{docCount}</p>
-          <p className="text-xs text-gray-500 uppercase tracking-wide">Documents</p>
-        </div>
-      </div>
-
-      {/* Workflow Progress Bar */}
-      <WorkflowProgressBar workflowData={workflowData} />
-
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded px-4 py-2 text-red-700 text-sm mb-4">
-          {error}
-        </div>
-      )}
-
-      {/* Securities list */}
-      {investment.securities && investment.securities.length > 0 && (
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
-              Securities
-            </h3>
-            <button
-              onClick={onAddSecurity}
-              className="text-blue-600 hover:text-blue-800 text-xs font-medium"
-            >
-              + Add Security
-            </button>
-          </div>
-          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-            {investment.securities.map((sec) => (
-              <div
-                key={sec.id}
-                onClick={() => onSelectSecurity(sec.id)}
-                className="bg-white rounded-lg shadow border border-gray-100 p-4 cursor-pointer hover:border-blue-300 transition"
-              >
-                <p className="font-medium text-gray-900 text-sm">
-                  {sec.investment_round || sec.description || `Security #${sec.id}`}
-                </p>
-                <div className="text-xs text-gray-500 mt-1 space-y-0.5">
-                  {sec.investment_date && <p>Date: {sec.investment_date}</p>}
-                  {sec.investment_size != null && (
-                    <p>Size: {formatCurrency(sec.investment_size)}</p>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {(!investment.securities || investment.securities.length === 0) && (
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
-              Securities
-            </h3>
-          </div>
+        {activeTab === "overview" && (
           <button
-            onClick={onAddSecurity}
-            className="w-full border-2 border-dashed border-gray-300 rounded-lg p-4 text-center text-gray-400 hover:border-blue-400 hover:text-blue-500 transition text-sm"
+            onClick={() => setUploading(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded transition"
           >
-            + Add your first security
+            Upload Documents
           </button>
-        </div>
-      )}
-
-      {/* Valuations */}
-      <div className="mb-6">
-        <ValuationPanel investmentId={investment.id} />
+        )}
       </div>
 
-      {/* Investment-level documents */}
-      <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
-        Investment-Level Documents
-      </h3>
-      <DocumentTable
-        documents={documents}
-        investmentId={investment.id}
-        onDelete={handleDeleteDoc}
-        onView={setViewerDoc}
-        onFinancials={setFinancialsDoc}
-        onValidate={setValidatingDoc}
-        workflowByDocId={workflowByDocId}
-      />
+      {/* Tab bar */}
+      <div className="flex border-b border-gray-200 mb-6">
+        {TABS.map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`px-4 py-2 text-sm font-medium transition border-b-2 -mb-px ${
+              activeTab === tab.key
+                ? "border-blue-600 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
+      {activeTab === "overview" && (
+        <>
+          {/* Summary stats */}
+          <div className="flex gap-4 mb-6">
+            <div className="bg-white rounded-lg shadow px-4 py-3 flex-1 text-center">
+              <p className="text-2xl font-bold text-gray-900">{secCount}</p>
+              <p className="text-xs text-gray-500 uppercase tracking-wide">Securities</p>
+            </div>
+            <div className="bg-white rounded-lg shadow px-4 py-3 flex-1 text-center">
+              <p className="text-2xl font-bold text-gray-900">{docCount}</p>
+              <p className="text-xs text-gray-500 uppercase tracking-wide">Documents</p>
+            </div>
+          </div>
+
+          {/* Workflow Progress Bar */}
+          <WorkflowProgressBar workflowData={workflowData} />
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded px-4 py-2 text-red-700 text-sm mb-4">
+              {error}
+            </div>
+          )}
+
+          {/* Securities list */}
+          {investment.securities && investment.securities.length > 0 && (
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+                  Securities
+                </h3>
+                <button
+                  onClick={onAddSecurity}
+                  className="text-blue-600 hover:text-blue-800 text-xs font-medium"
+                >
+                  + Add Security
+                </button>
+              </div>
+              <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                {investment.securities.map((sec) => (
+                  <div
+                    key={sec.id}
+                    onClick={() => onSelectSecurity(sec.id)}
+                    className="bg-white rounded-lg shadow border border-gray-100 p-4 cursor-pointer hover:border-blue-300 transition"
+                  >
+                    <p className="font-medium text-gray-900 text-sm">
+                      {sec.investment_round || sec.description || `Security #${sec.id}`}
+                    </p>
+                    <div className="text-xs text-gray-500 mt-1 space-y-0.5">
+                      {sec.investment_date && <p>Date: {sec.investment_date}</p>}
+                      {sec.investment_size != null && (
+                        <p>Size: {formatCurrency(sec.investment_size)}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {(!investment.securities || investment.securities.length === 0) && (
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+                  Securities
+                </h3>
+              </div>
+              <button
+                onClick={onAddSecurity}
+                className="w-full border-2 border-dashed border-gray-300 rounded-lg p-4 text-center text-gray-400 hover:border-blue-400 hover:text-blue-500 transition text-sm"
+              >
+                + Add your first security
+              </button>
+            </div>
+          )}
+
+          {/* Valuations */}
+          <div className="mb-6">
+            <ValuationPanel investmentId={investment.id} />
+          </div>
+
+          {/* Investment-level documents */}
+          <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
+            Investment-Level Documents
+          </h3>
+          <DocumentTable
+            documents={documents}
+            investmentId={investment.id}
+            onDelete={handleDeleteDoc}
+            onView={setViewerDoc}
+            onFinancials={setFinancialsDoc}
+            onValidate={setValidatingDoc}
+            workflowByDocId={workflowByDocId}
+          />
+        </>
+      )}
+
+      {activeTab === "comparables" && (
+        <ComparablesPanel investmentId={investment.id} />
+      )}
+
+      {/* Modals stay outside tab conditional */}
       {uploading && (
         <UploadModal
           investmentId={investment.id}
