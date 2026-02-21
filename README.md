@@ -1,4 +1,4 @@
-# Finance-Project
+# Valuation-Dashboard
 
 A full-stack investment management and financial document analysis platform. Upload, parse, review, and compare financial statements across your portfolio — all in one place.
 
