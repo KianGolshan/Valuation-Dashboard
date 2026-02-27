@@ -13,6 +13,11 @@ class ValuationCreate(BaseModel):
     implied_equity_value: float | None = None
     confidence_flag: str | None = None
     analyst_notes: str | None = None
+    price_per_share: float | None = None
+    security_id: int | None = None
+    multiple: float | None = None
+    financial_metric: str | None = None
+    financial_metric_value: float | None = None
 
 
 class ValuationUpdate(BaseModel):
@@ -25,6 +30,11 @@ class ValuationUpdate(BaseModel):
     implied_equity_value: float | None = None
     confidence_flag: str | None = None
     analyst_notes: str | None = None
+    price_per_share: float | None = None
+    security_id: int | None = None
+    multiple: float | None = None
+    financial_metric: str | None = None
+    financial_metric_value: float | None = None
 
 
 class ValuationResponse(BaseModel):
@@ -41,5 +51,10 @@ class ValuationResponse(BaseModel):
     implied_equity_value: float | None = None
     confidence_flag: str | None = None
     analyst_notes: str | None = None
+    price_per_share: float | None = None
+    security_id: int | None = None
+    multiple: float | None = None
+    financial_metric: str | None = None
+    financial_metric_value: float | None = None
     created_at: datetime
     updated_at: datetime

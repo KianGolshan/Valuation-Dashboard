@@ -202,6 +202,46 @@ export const api = {
       method: "DELETE",
     }),
 
+  exportValuationsUrl: (investmentId) =>
+    `${API}/investments/${investmentId}/valuations/export`,
+
+  // Financial Tracker
+  getFinancialTrackerGrid: (params = {}) => {
+    const qs = new URLSearchParams();
+    if (params.fiscal_years) qs.set("fiscal_years", params.fiscal_years);
+    if (params.investment_ids) qs.set("investment_ids", params.investment_ids);
+    return request(`${API}/financial-tracker/grid?${qs.toString()}`);
+  },
+
+  getTrackerSettings: (investmentId) =>
+    request(`${API}/investments/${investmentId}/financial-tracker/settings`),
+
+  updateTrackerSettings: (investmentId, data) =>
+    request(`${API}/investments/${investmentId}/financial-tracker/settings`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }),
+
+  syncFinancialTracker: (investmentId) =>
+    request(`${API}/investments/${investmentId}/financial-tracker/sync`, {
+      method: "POST",
+    }),
+
+  updatePeriodRecord: (recordId, data) =>
+    request(`${API}/financial-tracker/periods/${recordId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }),
+
+  upsertPeriodRecord: (data) =>
+    request(`${API}/financial-tracker/periods/upsert`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }),
+
   // Provenance
   getLineItemSourceContext: (lineItemId) =>
     request(`${API}/financials/line-items/${lineItemId}/source-context`),

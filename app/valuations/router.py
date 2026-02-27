@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -62,3 +63,18 @@ def delete_valuation(
     db: Session = Depends(get_db),
 ):
     service.delete_valuation(db, valuation_id)
+
+
+@router.get("/export")
+def export_valuations_excel(
+    investment_id: int,
+    db: Session = Depends(get_db),
+):
+    xlsx_bytes = service.export_valuations_excel(db, investment_id)
+    return StreamingResponse(
+        iter([xlsx_bytes]),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f"attachment; filename=valuations_{investment_id}.xlsx"
+        },
+    )

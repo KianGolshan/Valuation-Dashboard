@@ -7,6 +7,7 @@ import SecurityForm from "./components/SecurityForm";
 import SearchTab from "./components/SearchTab";
 import FinancialDataView from "./components/FinancialDataView";
 import DocumentsTab from "./components/DocumentsTab";
+import FinancialTrackerTab from "./components/FinancialTrackerTab";
 
 export default function App() {
   const [tab, setTab] = useState("investments");
@@ -126,6 +127,7 @@ export default function App() {
             { key: "investments", label: "Investments" },
             { key: "documents", label: "Documents" },
             { key: "financials", label: "Financials" },
+            { key: "tracker", label: "Financial Info" },
             { key: "search", label: "Search" },
           ].map((t) => (
             <button
@@ -217,6 +219,10 @@ export default function App() {
               </div>
             )}
           </main>
+        </div>
+      ) : tab === "tracker" ? (
+        <div className="flex-1 overflow-auto">
+          <FinancialTrackerTab investments={investments} />
         </div>
       ) : (
         <div className="flex-1 overflow-auto">
