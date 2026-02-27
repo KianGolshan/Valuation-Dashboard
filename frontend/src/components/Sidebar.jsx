@@ -1,15 +1,17 @@
 import { useState } from "react";
 
-const WORKFLOW_COLORS = {
-  approved: "bg-green-400",
-  reviewed: "bg-blue-400",
-  mapped: "bg-purple-400",
-  partially_mapped: "bg-purple-300",
-  parsed: "bg-yellow-400",
-  not_parsed: "bg-slate-500",
+// Simplified 3-state user-facing workflow
+const WORKFLOW_DISPLAY = {
+  approved:         { color: "bg-green-400",  label: "Complete",    group: "complete" },
+  reviewed:         { color: "bg-blue-400",   label: "In Review",   group: "review" },
+  mapped:           { color: "bg-blue-400",   label: "In Review",   group: "review" },
+  partially_mapped: { color: "bg-yellow-400", label: "Needs Action", group: "action" },
+  parsed:           { color: "bg-yellow-400", label: "Needs Action", group: "action" },
+  not_parsed:       { color: "bg-slate-500",  label: "Needs Action", group: "action" },
 };
 
-const WORKFLOW_LABELS = {
+// Keep for tooltip detail
+const WORKFLOW_DETAIL = {
   approved: "Approved",
   reviewed: "Reviewed",
   mapped: "Mapped",
@@ -20,18 +22,21 @@ const WORKFLOW_LABELS = {
 
 function WorkflowDot({ data }) {
   if (!data) return null;
-  const color = WORKFLOW_COLORS[data.overall_status] || "bg-slate-500";
-  const label = WORKFLOW_LABELS[data.overall_status] || data.overall_status;
+  const display = WORKFLOW_DISPLAY[data.overall_status] || WORKFLOW_DISPLAY.not_parsed;
+  const detail = WORKFLOW_DETAIL[data.overall_status] || data.overall_status;
   const fraction =
     data.total_statements > 0
       ? `${data.total_approved}/${data.total_statements}`
       : null;
   return (
-    <span className="flex items-center gap-1 ml-auto shrink-0" title={`${label}${fraction ? ` (${fraction} approved)` : ""}`}>
+    <span
+      className="flex items-center gap-1 ml-auto shrink-0"
+      title={`${detail}${fraction ? ` (${fraction} approved)` : ""}`}
+    >
       {fraction && (
         <span className="text-[10px] text-slate-400">{fraction}</span>
       )}
-      <span className={`inline-block w-2 h-2 rounded-full ${color}`} />
+      <span className={`inline-block w-2 h-2 rounded-full ${display.color}`} />
     </span>
   );
 }
@@ -111,7 +116,7 @@ export default function Sidebar({
           className="w-full bg-slate-700 text-white text-xs px-3 py-1.5 rounded border border-slate-600 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
       </div>
-      <ul className="flex-1 overflow-auto">
+      <ul className="flex-1 overflow-auto min-h-0">
         {filtered.length === 0 && (
           <li className="px-4 py-8 text-center text-slate-500 text-sm">
             {search ? "No matches" : "No investments yet"}
@@ -235,6 +240,24 @@ export default function Sidebar({
           );
         })}
       </ul>
+      {/* Workflow dot legend */}
+      <div className="px-4 py-2 border-t border-slate-700 shrink-0">
+        <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Workflow</p>
+        <div className="flex flex-col gap-1">
+          <span className="flex items-center gap-1.5 text-[10px] text-slate-400">
+            <span className="w-2 h-2 rounded-full bg-green-400 shrink-0" /> Complete
+          </span>
+          <span className="flex items-center gap-1.5 text-[10px] text-slate-400">
+            <span className="w-2 h-2 rounded-full bg-blue-400 shrink-0" /> In Review
+          </span>
+          <span className="flex items-center gap-1.5 text-[10px] text-slate-400">
+            <span className="w-2 h-2 rounded-full bg-yellow-400 shrink-0" /> Needs Action
+          </span>
+          <span className="flex items-center gap-1.5 text-[10px] text-slate-400">
+            <span className="w-2 h-2 rounded-full bg-slate-500 shrink-0" /> Not Parsed
+          </span>
+        </div>
+      </div>
     </aside>
   );
 }

@@ -190,27 +190,60 @@ function ValuationForm({ investmentId, existing, securities, onSave, onCancel })
     price_per_share: existing?.price_per_share ?? "",
     implied_enterprise_value: existing?.implied_enterprise_value ?? "",
     implied_equity_value: existing?.implied_equity_value ?? "",
+    discount_rate: existing?.discount_rate ?? "",
     confidence_flag: existing?.confidence_flag || "medium",
     analyst_notes: existing?.analyst_notes || "",
-    // Keep legacy fields for backward compat
-    revenue_multiple: existing?.revenue_multiple ?? "",
-    ebitda_multiple: existing?.ebitda_multiple ?? "",
-    discount_rate: existing?.discount_rate ?? "",
   });
   const [saving, setSaving] = useState(false);
+  const [periods, setPeriods] = useState([]);  // for Pull from Financials
+
+  // Load available periods once
+  useEffect(() => {
+    api.getKeyMetricsByPeriod(investmentId)
+      .then((data) => setPeriods(data.periods || []))
+      .catch(() => {});
+  }, [investmentId]);
 
   function handleChange(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }));
   }
+
+  function handlePullFromFinancials(e) {
+    const idx = parseInt(e.target.value);
+    if (isNaN(idx)) return;
+    const entry = periods[idx];
+    if (!entry) return;
+    // Auto-fill financial_metric + value based on current methodology selection
+    const metricMap = {
+      "Revenue Multiple": "LTM Revenue",
+      "EBITDA Multiple": "LTM EBITDA",
+    };
+    const preferredMetric = metricMap[form.methodology];
+    const metrics = entry.metrics;
+    let chosenMetric = preferredMetric && metrics[preferredMetric] != null
+      ? preferredMetric
+      : Object.keys(metrics)[0];
+    if (chosenMetric) {
+      setForm((prev) => ({
+        ...prev,
+        financial_metric: chosenMetric,
+        financial_metric_value: metrics[chosenMetric] ?? prev.financial_metric_value,
+      }));
+    }
+  }
+
+  const isDCF = form.methodology === "DCF";
 
   async function handleSubmit(e) {
     e.preventDefault();
     setSaving(true);
     try {
       const payload = {
-        ...form,
+        valuation_date: form.valuation_date,
+        methodology: form.methodology,
         security_id: form.security_id === "" ? null : parseInt(form.security_id),
         multiple: form.multiple === "" ? null : parseFloat(form.multiple),
+        financial_metric: form.financial_metric || null,
         financial_metric_value:
           form.financial_metric_value === "" ? null : parseFloat(form.financial_metric_value),
         price_per_share: form.price_per_share === "" ? null : parseFloat(form.price_per_share),
@@ -218,10 +251,9 @@ function ValuationForm({ investmentId, existing, securities, onSave, onCancel })
           form.implied_enterprise_value === "" ? null : parseFloat(form.implied_enterprise_value),
         implied_equity_value:
           form.implied_equity_value === "" ? null : parseFloat(form.implied_equity_value),
-        revenue_multiple: form.revenue_multiple === "" ? null : parseFloat(form.revenue_multiple),
-        ebitda_multiple: form.ebitda_multiple === "" ? null : parseFloat(form.ebitda_multiple),
-        discount_rate: form.discount_rate === "" ? null : parseFloat(form.discount_rate),
-        financial_metric: form.financial_metric || null,
+        discount_rate: isDCF && form.discount_rate !== "" ? parseFloat(form.discount_rate) : null,
+        confidence_flag: form.confidence_flag,
+        analyst_notes: form.analyst_notes || null,
       };
       if (existing) {
         await api.updateValuation(investmentId, existing.id, payload);
@@ -238,6 +270,7 @@ function ValuationForm({ investmentId, existing, securities, onSave, onCancel })
 
   return (
     <form onSubmit={handleSubmit} className="bg-gray-50 rounded-lg p-4 space-y-3">
+      {/* Row 1: Date + Methodology */}
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Date</label>
@@ -263,6 +296,7 @@ function ValuationForm({ investmentId, existing, securities, onSave, onCancel })
         </div>
       </div>
 
+      {/* Row 2: Security + Multiple + Price/Share */}
       <div className="grid grid-cols-3 gap-3">
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Security</label>
@@ -274,20 +308,24 @@ function ValuationForm({ investmentId, existing, securities, onSave, onCancel })
             <option value="">— None —</option>
             {securities.map((s) => (
               <option key={s.id} value={s.id}>
-                {s.security_name || s.name || `#${s.id}`}
+                {s.investment_round || s.description || `Security #${s.id}`}
               </option>
             ))}
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Multiple</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">
+            {isDCF ? "Discount Rate (%)" : "Multiple"}
+          </label>
           <input
             type="number"
             step="any"
-            value={form.multiple}
-            onChange={(e) => handleChange("multiple", e.target.value)}
+            value={isDCF ? form.discount_rate : form.multiple}
+            onChange={(e) =>
+              handleChange(isDCF ? "discount_rate" : "multiple", e.target.value)
+            }
             className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm"
-            placeholder="e.g. 5.0"
+            placeholder={isDCF ? "e.g. 10.0" : "e.g. 5.0"}
           />
         </div>
         <div>
@@ -303,6 +341,7 @@ function ValuationForm({ investmentId, existing, securities, onSave, onCancel })
         </div>
       </div>
 
+      {/* Row 3: Financial Metric + Value (with Pull from Financials) */}
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Financial Metric</label>
@@ -320,7 +359,23 @@ function ValuationForm({ investmentId, existing, securities, onSave, onCancel })
           </datalist>
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Metric Value ($)</label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-xs font-medium text-gray-600">Metric Value ($)</label>
+            {periods.length > 0 && (
+              <select
+                defaultValue=""
+                onChange={handlePullFromFinancials}
+                className="text-xs text-blue-600 border-none bg-transparent cursor-pointer"
+              >
+                <option value="">↓ Pull from Financials</option>
+                {periods.map((p, i) => (
+                  <option key={i} value={i}>
+                    {p.period_label}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
           <input
             type="number"
             step="any"
@@ -332,9 +387,12 @@ function ValuationForm({ investmentId, existing, securities, onSave, onCancel })
         </div>
       </div>
 
+      {/* Row 4: EV + Equity Value */}
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Implied Enterprise Value</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">
+            Implied Enterprise Value
+          </label>
           <input
             type="number"
             step="any"
@@ -344,7 +402,9 @@ function ValuationForm({ investmentId, existing, securities, onSave, onCancel })
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Implied Equity Value</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">
+            Implied Equity Value
+          </label>
           <input
             type="number"
             step="any"
@@ -355,6 +415,7 @@ function ValuationForm({ investmentId, existing, securities, onSave, onCancel })
         </div>
       </div>
 
+      {/* Row 5: Confidence */}
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Confidence</label>

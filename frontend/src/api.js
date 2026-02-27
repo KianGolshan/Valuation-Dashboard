@@ -274,6 +274,9 @@ export const api = {
   getUnmappedStatements: (investmentId) =>
     request(`${API}/dashboard/financials/${investmentId}/unmapped-statements`),
 
+  getKeyMetricsByPeriod: (investmentId) =>
+    request(`${API}/dashboard/financials/${investmentId}/key-metrics`),
+
   // Comparables — Profile
   upsertProfile: (investmentId, data) =>
     request(`${API}/investments/${investmentId}/profile`, {

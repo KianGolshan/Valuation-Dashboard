@@ -5,7 +5,6 @@ import InvestmentPanel from "./components/InvestmentPanel";
 import InvestmentForm from "./components/InvestmentForm";
 import SecurityForm from "./components/SecurityForm";
 import SearchTab from "./components/SearchTab";
-import FinancialDataView from "./components/FinancialDataView";
 import DocumentsTab from "./components/DocumentsTab";
 import FinancialTrackerTab from "./components/FinancialTrackerTab";
 
@@ -124,9 +123,8 @@ export default function App() {
         <h1 className="text-lg font-semibold">Finance Document Manager</h1>
         <nav className="flex gap-1">
           {[
-            { key: "investments", label: "Investments" },
+            { key: "investments", label: "Portfolio" },
             { key: "documents", label: "Documents" },
-            { key: "financials", label: "Financials" },
             { key: "tracker", label: "Financial Info" },
             { key: "search", label: "Search" },
           ].map((t) => (
@@ -191,34 +189,6 @@ export default function App() {
       ) : tab === "documents" ? (
         <div className="flex-1 overflow-auto">
           <DocumentsTab investments={investments} />
-        </div>
-      ) : tab === "financials" ? (
-        <div className="flex flex-1 overflow-hidden">
-          <Sidebar
-            investments={investments}
-            selectedInvestmentId={selectedInvestmentId}
-            selectedSecurityId={selectedSecurityId}
-            onSelectInvestment={handleSelectInvestment}
-            onSelectSecurity={handleSelectSecurity}
-            onAdd={handleAdd}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            onAddSecurity={handleAddSecurity}
-            onDeleteSecurity={handleDeleteSecurity}
-            workflowData={workflowData}
-          />
-          <main className="flex-1 overflow-auto p-6">
-            {selected ? (
-              <FinancialDataView
-                investmentId={selected.id}
-                investmentName={selected.investment_name}
-              />
-            ) : (
-              <div className="flex items-center justify-center h-full text-gray-400">
-                Select an investment to view financial data
-              </div>
-            )}
-          </main>
         </div>
       ) : tab === "tracker" ? (
         <div className="flex-1 overflow-auto">
