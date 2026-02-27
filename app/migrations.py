@@ -55,4 +55,16 @@ def startup_migrations(engine: Engine):
     for col_name, col_type in el_additions:
         _add_column_if_missing(engine, "edit_logs", col_name, col_type, el_cols)
 
+    # ── valuation_records table ──────────────────────────────────────────────
+    vr_cols = _get_existing_columns(engine, "valuation_records")
+    vr_additions = [
+        ("price_per_share", "REAL"),
+        ("security_id", "INTEGER"),
+        ("multiple", "REAL"),
+        ("financial_metric", "VARCHAR(100)"),
+        ("financial_metric_value", "REAL"),
+    ]
+    for col_name, col_type in vr_additions:
+        _add_column_if_missing(engine, "valuation_records", col_name, col_type, vr_cols)
+
     logger.info("Startup migrations complete")

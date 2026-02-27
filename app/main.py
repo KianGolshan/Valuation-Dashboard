@@ -17,6 +17,7 @@ from app.valuations.router import router as valuations_router
 from app.financial_parsing.priority_router import router as priority_router
 from app.financial_parsing.workflow_router import router as workflow_router
 from app.comparables.router import router as comparables_router
+from app.financial_tracker.router import router as financial_tracker_router
 
 
 @asynccontextmanager
@@ -52,6 +53,7 @@ app.include_router(valuations_router, prefix="/api/v1")
 app.include_router(priority_router, prefix="/api/v1")
 app.include_router(workflow_router, prefix="/api/v1")
 app.include_router(comparables_router, prefix="/api/v1")
+app.include_router(financial_tracker_router, prefix="/api/v1")
 
 
 @app.get("/health")

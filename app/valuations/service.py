@@ -1,3 +1,6 @@
+import io
+
+from openpyxl import Workbook
 from sqlalchemy.orm import Session
 
 from app.exceptions import not_found
@@ -47,3 +50,48 @@ def delete_valuation(db: Session, valuation_id: int):
     record = get_valuation(db, valuation_id)
     db.delete(record)
     db.commit()
+
+
+def export_valuations_excel(db: Session, investment_id: int) -> bytes:
+    records = list_valuations(db, investment_id)
+    # Reverse so oldest first in the export
+    records = list(reversed(records))
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Valuation History"
+
+    headers = [
+        "Date",
+        "Security ID",
+        "Methodology",
+        "Multiple",
+        "Financial Metric",
+        "Financial Metric Value",
+        "Price / Share",
+        "Enterprise Value",
+        "Equity Value",
+        "Confidence",
+        "Notes",
+    ]
+    ws.append(headers)
+
+    for r in records:
+        ws.append([
+            r.valuation_date,
+            r.security_id,
+            r.methodology,
+            r.multiple,
+            r.financial_metric,
+            r.financial_metric_value,
+            r.price_per_share,
+            r.implied_enterprise_value,
+            r.implied_equity_value,
+            r.confidence_flag,
+            r.analyst_notes,
+        ])
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf.read()
