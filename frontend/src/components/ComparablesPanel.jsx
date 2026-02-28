@@ -28,7 +28,7 @@ function ApplyValuationModal({ investmentId, statistics, onClose, onApplied }) {
   const [confidence, setConfidence] = useState("medium");
 
   useEffect(() => {
-    api.listSecurities(investmentId).then(setSecurities).catch(() => {});
+    api.listSecurities(investmentId).then((r) => setSecurities(r.items ?? r)).catch(() => {});
   }, [investmentId]);
 
   const stat = statistics.find((s) => s.metric === selectedMetric);

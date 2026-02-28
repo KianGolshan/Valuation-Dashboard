@@ -178,10 +178,19 @@ def run_analysis(db: Session, comp_set_id: int) -> AnalysisResponse:
     for company in cs.companies:
         ticker = company.ticker
 
-        # Fetch data from FMP
-        profile = fmp_service.get_company_profile(ticker, db)
-        income_stmts = fmp_service.get_income_statement(ticker, db, limit=2)
-        ev_data = fmp_service.get_enterprise_value(ticker, db, limit=2)
+        # Fetch data from FMP — skip company gracefully if data is unavailable
+        try:
+            profile = fmp_service.get_company_profile(ticker, db)
+            income_stmts = fmp_service.get_income_statement(ticker, db, limit=2)
+            ev_data = fmp_service.get_enterprise_value(ticker, db, limit=2)
+        except fmp_service.FmpError:
+            company_multiples.append(CompanyMultiples(
+                ticker=ticker,
+                company_name=company.company_name,
+                include_in_median=False,
+                data_unavailable=True,
+            ))
+            continue
 
         market_cap = profile.get("mktCap") if profile else None
 

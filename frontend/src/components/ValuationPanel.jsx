@@ -571,7 +571,7 @@ export default function ValuationPanel({ investmentId }) {
       ]);
       setValuations(list);
       setLatest(lat);
-      setSecurities(secs);
+      setSecurities(secs.items ?? secs);
     } catch {
       // ignore
     } finally {
