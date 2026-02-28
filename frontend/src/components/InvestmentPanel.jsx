@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "../api";
 import UploadModal from "./UploadModal";
 import DocumentViewer from "./DocumentViewer";
@@ -6,6 +6,7 @@ import FinancialStatements from "./FinancialStatements";
 import ParseValidationPanel from "./ParseValidationPanel";
 import ValuationPanel from "./ValuationPanel";
 import ComparablesPanel from "./ComparablesPanel";
+import FinancialDataView from "./FinancialDataView";
 
 function formatSize(bytes) {
   if (bytes < 1024) return `${bytes} B`;
@@ -204,6 +205,54 @@ function DocumentTable({ documents, investmentId, onDelete, onView, onFinancials
   );
 }
 
+function SecurityCard({ security: sec, investmentId, onClick }) {
+  const [latestValuation, setLatestValuation] = useState(null);
+
+  useEffect(() => {
+    api.getLatestValuation(investmentId)
+      .then((v) => {
+        // Find the most recent valuation tied to this security, else fall back to investment-level
+        setLatestValuation(v);
+      })
+      .catch(() => {});
+  }, [investmentId]);
+
+  // Return multiple: current price / initial cost basis
+  const costBasis = sec.price_per_share;
+  const currentPPS = latestValuation?.price_per_share ?? latestValuation?.security_id === sec.id
+    ? latestValuation?.price_per_share
+    : null;
+  const returnMultiple =
+    costBasis != null && costBasis > 0 && currentPPS != null && currentPPS > 0
+      ? currentPPS / costBasis
+      : null;
+
+  return (
+    <div
+      onClick={onClick}
+      className="bg-white rounded-lg shadow border border-gray-100 p-4 cursor-pointer hover:border-blue-300 transition"
+    >
+      <p className="font-medium text-gray-900 text-sm">
+        {sec.investment_round || sec.description || `Security #${sec.id}`}
+      </p>
+      <div className="text-xs text-gray-500 mt-1 space-y-0.5">
+        {sec.investment_date && <p>Date: {sec.investment_date}</p>}
+        {sec.investment_size != null && (
+          <p>Size: {formatCurrency(sec.investment_size)}</p>
+        )}
+        {costBasis != null && (
+          <p>Cost basis: {formatCurrency(costBasis)}/sh</p>
+        )}
+        {returnMultiple != null && (
+          <p className={`font-medium ${returnMultiple >= 1 ? "text-green-600" : "text-red-500"}`}>
+            {returnMultiple.toFixed(2)}x return
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function InvestmentPanel({
   investment,
   selectedSecurityId,
@@ -389,6 +438,8 @@ export default function InvestmentPanel({
 
   const TABS = [
     { key: "overview", label: "Overview" },
+    { key: "financials", label: "Financials" },
+    { key: "valuations", label: "Valuations" },
     { key: "comparables", label: "Comparables" },
   ];
 
@@ -475,21 +526,12 @@ export default function InvestmentPanel({
               </div>
               <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                 {investment.securities.map((sec) => (
-                  <div
+                  <SecurityCard
                     key={sec.id}
+                    security={sec}
+                    investmentId={investment.id}
                     onClick={() => onSelectSecurity(sec.id)}
-                    className="bg-white rounded-lg shadow border border-gray-100 p-4 cursor-pointer hover:border-blue-300 transition"
-                  >
-                    <p className="font-medium text-gray-900 text-sm">
-                      {sec.investment_round || sec.description || `Security #${sec.id}`}
-                    </p>
-                    <div className="text-xs text-gray-500 mt-1 space-y-0.5">
-                      {sec.investment_date && <p>Date: {sec.investment_date}</p>}
-                      {sec.investment_size != null && (
-                        <p>Size: {formatCurrency(sec.investment_size)}</p>
-                      )}
-                    </div>
-                  </div>
+                  />
                 ))}
               </div>
             </div>
@@ -511,11 +553,6 @@ export default function InvestmentPanel({
             </div>
           )}
 
-          {/* Valuations */}
-          <div className="mb-6">
-            <ValuationPanel investmentId={investment.id} />
-          </div>
-
           {/* Investment-level documents */}
           <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
             Investment-Level Documents
@@ -530,6 +567,17 @@ export default function InvestmentPanel({
             workflowByDocId={workflowByDocId}
           />
         </>
+      )}
+
+      {activeTab === "financials" && (
+        <FinancialDataView
+          investmentId={investment.id}
+          investmentName={investment.investment_name}
+        />
+      )}
+
+      {activeTab === "valuations" && (
+        <ValuationPanel investmentId={investment.id} />
       )}
 
       {activeTab === "comparables" && (

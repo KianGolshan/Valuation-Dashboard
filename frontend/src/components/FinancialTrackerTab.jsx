@@ -257,6 +257,87 @@ function SettingsModal({ investment, onClose, onSaved }) {
   );
 }
 
+// ── Linked Statements Modal ───────────────────────────────────────────────────
+
+function LinkedStatementsModal({ record, investmentName, onClose }) {
+  const [statements, setStatements] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let ids = [];
+    try {
+      ids = record.statement_ids ? JSON.parse(record.statement_ids) : [];
+    } catch { ids = []; }
+
+    if (ids.length === 0) {
+      setLoading(false);
+      return;
+    }
+    // Fetch all statements for this investment and filter to matching IDs
+    api.getDashboardStatements(record.investment_id)
+      .then((stmts) => {
+        const idSet = new Set(ids.map(Number));
+        setStatements(stmts.filter((s) => idSet.has(s.id)));
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [record]);
+
+  const TYPE_LABELS = {
+    income_statement: "Income Statement",
+    balance_sheet: "Balance Sheet",
+    cash_flow: "Cash Flow",
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl p-6 w-[480px] max-h-[80vh] flex flex-col">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-800">
+              {record.period_label} FY{record.fiscal_year} — {investmentName}
+            </h3>
+            <p className="text-xs text-gray-500 mt-0.5">Linked financial statements</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg">&times;</button>
+        </div>
+        {loading ? (
+          <p className="text-sm text-gray-400">Loading...</p>
+        ) : statements.length === 0 ? (
+          <p className="text-sm text-gray-400">No linked statements found.</p>
+        ) : (
+          <div className="overflow-auto space-y-2">
+            {statements.map((s) => (
+              <div key={s.id} className="border border-gray-200 rounded p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-700">
+                    {TYPE_LABELS[s.statement_type] || s.statement_type}
+                  </span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${
+                    s.review_status === "approved" ? "bg-green-100 text-green-700"
+                    : s.review_status === "reviewed" ? "bg-blue-100 text-blue-700"
+                    : "bg-yellow-100 text-yellow-700"
+                  }`}>{s.review_status}</span>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">{s.fiscal_period_label || s.period}</p>
+                {s.currency && <p className="text-xs text-gray-400">{s.currency}{s.unit ? ` · ${s.unit}` : ""}</p>}
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="mt-4 flex justify-end">
+          <button
+            onClick={onClose}
+            className="text-sm text-gray-600 hover:text-gray-800 px-3 py-1.5 border border-gray-300 rounded"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export default function FinancialTrackerTab({ investments }) {
@@ -268,6 +349,7 @@ export default function FinancialTrackerTab({ investments }) {
   const [syncing, setSyncing] = useState(false);
   const [editingCell, setEditingCell] = useState(null); // { investmentId, fy, periodLabel, record }
   const [settingsInvestment, setSettingsInvestment] = useState(null);
+  const [viewingStatements, setViewingStatements] = useState(null); // { record, investmentName }
 
   const loadGrid = useCallback(async () => {
     setLoading(true);
@@ -470,28 +552,44 @@ export default function FinancialTrackerTab({ investments }) {
                       editingCell.fy === col.fy &&
                       editingCell.periodLabel === periodLabel;
 
+                    const hasStatements =
+                      status === "received" &&
+                      record?.statement_ids &&
+                      JSON.parse(record.statement_ids || "[]").length > 0;
+
                     return (
                       <td
                         key={col.key}
                         className="border-l border-gray-100 text-center relative"
                       >
                         <button
-                          onClick={() =>
-                            setEditingCell(
-                              isEditing
-                                ? null
-                                : {
-                                    investmentId: row.investment_id,
-                                    fy: col.fy,
-                                    periodLabel,
-                                    record,
-                                  }
-                            )
-                          }
+                          onClick={() => {
+                            if (isEditing) {
+                              setEditingCell(null);
+                            } else {
+                              setEditingCell({
+                                investmentId: row.investment_id,
+                                fy: col.fy,
+                                periodLabel,
+                                record,
+                              });
+                            }
+                          }}
+                          onDoubleClick={() => {
+                            if (hasStatements) {
+                              setViewingStatements({
+                                record,
+                                investmentName: row.investment_name,
+                              });
+                            }
+                          }}
                           className={`w-full h-full px-1 py-2 flex items-center justify-center rounded transition-colors hover:opacity-80 ${cfg.cls}`}
-                          title={`${cfg.label}${record?.notes ? ` — ${record.notes}` : ""}`}
+                          title={`${cfg.label}${record?.notes ? ` — ${record.notes}` : ""}${hasStatements ? " · Double-click to view statements" : ""}`}
                         >
                           <span className="text-sm">{cfg.icon}</span>
+                          {hasStatements && (
+                            <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-blue-500" />
+                          )}
                         </button>
                         {isEditing && (
                           <CellPopover
@@ -522,6 +620,15 @@ export default function FinancialTrackerTab({ investments }) {
             setSettingsInvestment(null);
             loadGrid();
           }}
+        />
+      )}
+
+      {/* Linked statements drill-down modal */}
+      {viewingStatements && (
+        <LinkedStatementsModal
+          record={viewingStatements.record}
+          investmentName={viewingStatements.investmentName}
+          onClose={() => setViewingStatements(null)}
         />
       )}
     </div>

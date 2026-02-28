@@ -298,10 +298,15 @@ def run_parsing(job_id: int, pdf_path: str, chunks: list[dict]):
             db.delete(s)
         db.flush()
 
+        # Resolve the investment_id for this document so statements are auto-mapped
+        doc_obj = db.query(Document).filter(Document.id == job.document_id).first()
+        auto_investment_id = doc_obj.investment_id if doc_obj else None
+
         # Write new statements
         for stmt_data in merged:
             stmt = FinancialStatement(
                 document_id=job.document_id,
+                investment_id=auto_investment_id,
                 statement_type=stmt_data["statement_type"],
                 period=stmt_data["period"],
                 period_end_date=stmt_data.get("period_end_date"),
@@ -896,6 +901,13 @@ def map_statement_to_investment(
     stmt.fiscal_period_label = fiscal_period_label
     db.commit()
     db.refresh(stmt)
+    # Auto-sync tracker whenever a statement gets a fiscal_period_label
+    if fiscal_period_label:
+        try:
+            from app.financial_tracker.service import sync_from_statements
+            sync_from_statements(db, investment_id)
+        except Exception:
+            pass  # Non-critical — tracker sync failure shouldn't break mapping
     return stmt
 
 

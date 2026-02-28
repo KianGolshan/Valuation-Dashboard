@@ -151,6 +151,66 @@ def export_investment_comparison(
     )
 
 
+@router.get("/financials/{investment_id}/key-metrics")
+def get_key_metrics_by_period(
+    investment_id: int,
+    db: Session = Depends(get_db),
+):
+    """Return key financial metrics grouped by period for use in the Valuation form.
+
+    Focuses on income statement categories most commonly used as valuation anchors.
+    """
+    KEY_CATEGORIES = {
+        "revenue": "Revenue",
+        "gross_profit": "Gross Profit",
+        "operating_income": "Operating Income (EBIT)",
+        "net_income": "Net Income",
+    }
+    # Approximate EBITDA from operating_income + depreciation_amortization
+    stmts = (
+        db.query(FinancialStatement)
+        .filter(
+            FinancialStatement.investment_id == investment_id,
+            FinancialStatement.statement_type == "income_statement",
+        )
+        .order_by(FinancialStatement.reporting_date.desc())
+        .all()
+    )
+
+    periods: list[dict] = []
+    seen = set()
+    for stmt in stmts:
+        period_label = stmt.fiscal_period_label or stmt.period
+        if period_label in seen:
+            continue
+        seen.add(period_label)
+
+        metrics: dict[str, float | None] = {}
+        da_value: float | None = None
+        for li in stmt.line_items:
+            cat = li.category
+            val = li.edited_value if li.edited_value is not None else li.value
+            if cat in KEY_CATEGORIES:
+                metrics[KEY_CATEGORIES[cat]] = val
+            if cat == "depreciation_amortization" and val is not None:
+                da_value = val
+
+        # Compute LTM EBITDA if we have operating income and D&A
+        oi = metrics.get("Operating Income (EBIT)")
+        if oi is not None and da_value is not None:
+            metrics["EBITDA (approx)"] = oi + abs(da_value)
+
+        if metrics:
+            periods.append({
+                "period_label": period_label,
+                "reporting_date": stmt.reporting_date,
+                "statement_id": stmt.id,
+                "metrics": metrics,
+            })
+
+    return {"investment_id": investment_id, "periods": periods}
+
+
 @router.get("/financials/{investment_id}/unmapped-statements")
 def get_unmapped_statements(
     investment_id: int,
