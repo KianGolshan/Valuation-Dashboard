@@ -90,6 +90,7 @@ class CompanyMultiples(BaseModel):
     ebitda_margin: float | None = None
     rule_of_40: float | None = None
     include_in_median: bool = True
+    data_unavailable: bool = False
 
 
 class AnalysisStats(BaseModel):

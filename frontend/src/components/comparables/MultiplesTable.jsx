@@ -149,30 +149,43 @@ export default function MultiplesTable({ analysis }) {
               <tr
                 key={company.ticker}
                 className={`hover:bg-gray-50 ${
-                  !company.include_in_median ? "opacity-40" : ""
+                  !company.include_in_median || company.data_unavailable ? "opacity-40" : ""
                 }`}
               >
-                {COLUMNS.map((col) => {
-                  const val = company[col.key];
-                  const outlier =
-                    col.mono &&
-                    col.key !== "ticker" &&
-                    col.key !== "market_cap" &&
-                    company.include_in_median &&
-                    isOutlier(val, medians[col.key], stdDevs[col.key]);
-                  return (
+                {company.data_unavailable ? (
+                  <>
+                    <td className="px-3 py-2 font-mono text-gray-900">{company.ticker}</td>
+                    <td className="px-3 py-2 text-gray-900">{company.company_name}</td>
                     <td
-                      key={col.key}
-                      className={`px-3 py-2 ${
-                        col.align === "right" ? "text-right" : "text-left"
-                      } ${col.mono ? "font-mono" : ""} ${
-                        outlier ? "text-amber-600 font-semibold" : "text-gray-900"
-                      }`}
+                      colSpan={COLUMNS.length - 2}
+                      className="px-3 py-2 text-xs text-orange-600 italic"
                     >
-                      {col.format(val)}
+                      Data unavailable (not covered by current FMP plan)
                     </td>
-                  );
-                })}
+                  </>
+                ) : (
+                  COLUMNS.map((col) => {
+                    const val = company[col.key];
+                    const outlier =
+                      col.mono &&
+                      col.key !== "ticker" &&
+                      col.key !== "market_cap" &&
+                      company.include_in_median &&
+                      isOutlier(val, medians[col.key], stdDevs[col.key]);
+                    return (
+                      <td
+                        key={col.key}
+                        className={`px-3 py-2 ${
+                          col.align === "right" ? "text-right" : "text-left"
+                        } ${col.mono ? "font-mono" : ""} ${
+                          outlier ? "text-amber-600 font-semibold" : "text-gray-900"
+                        }`}
+                      >
+                        {col.format(val)}
+                      </td>
+                    );
+                  })
+                )}
               </tr>
             ))}
 

@@ -135,18 +135,40 @@ def upsert_settings(db: Session, investment_id: int, data: dict) -> InvestmentRe
     return settings
 
 
+def _derive_period_from_date(period_end_date: str | None) -> tuple[int, str] | None:
+    """Derive (fiscal_year, period_label) from a period_end_date string (YYYY-MM-DD).
+
+    Maps calendar months to standard quarters:
+      Jan–Mar → Q1, Apr–Jun → Q2, Jul–Sep → Q3, Oct–Dec → Q4
+    """
+    if not period_end_date:
+        return None
+    try:
+        from datetime import date
+        d = date.fromisoformat(str(period_end_date)[:10])
+        quarter = (d.month - 1) // 3 + 1
+        return (d.year, f"Q{quarter}")
+    except (ValueError, TypeError):
+        return None
+
+
 def sync_from_statements(db: Session, investment_id: int) -> int:
     """Sync FinancialPeriodRecord rows from parsed financial statements.
 
-    Only creates/updates records with auto_detected=True. Does NOT overwrite
-    records where auto_detected=False (user-edited).
+    Uses fiscal_period_label if set, otherwise falls back to period_end_date
+    to derive the quarter. Only creates/updates records with auto_detected=True.
+    Does NOT overwrite records where auto_detected=False (user-edited).
     Returns count of records synced.
     """
+    from sqlalchemy import or_
     statements = (
         db.query(FinancialStatement)
         .filter(
             FinancialStatement.investment_id == investment_id,
-            FinancialStatement.fiscal_period_label.isnot(None),
+            or_(
+                FinancialStatement.fiscal_period_label.isnot(None),
+                FinancialStatement.period_end_date.isnot(None),
+            ),
         )
         .all()
     )
@@ -154,7 +176,9 @@ def sync_from_statements(db: Session, investment_id: int) -> int:
     # Group by (fiscal_year, period_label) → list of statement ids
     grouped: dict[tuple[int, str], list[int]] = {}
     for stmt in statements:
-        parsed = _parse_period_label(stmt.fiscal_period_label)
+        parsed = _parse_period_label(stmt.fiscal_period_label) if stmt.fiscal_period_label else None
+        if not parsed:
+            parsed = _derive_period_from_date(stmt.period_end_date)
         if not parsed:
             continue
         key = parsed

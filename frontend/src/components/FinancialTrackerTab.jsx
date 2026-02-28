@@ -78,8 +78,8 @@ function CellPopover({ cell, onSave, onClose }) {
   return (
     <div
       ref={ref}
-      className="absolute z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-3 w-56"
-      style={{ top: "100%", left: "50%", transform: "translateX(-50%)" }}
+      className="fixed z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-3 w-56"
+      style={{ top: cell.anchor.top + 8, left: cell.anchor.left, transform: "translateX(-50%)" }}
     >
       <div className="text-xs font-semibold text-gray-700 mb-2">
         {cell.periodLabel} FY{cell.fy}
@@ -560,18 +560,20 @@ export default function FinancialTrackerTab({ investments }) {
                     return (
                       <td
                         key={col.key}
-                        className="border-l border-gray-100 text-center relative"
+                        className="border-l border-gray-100 text-center"
                       >
                         <button
-                          onClick={() => {
+                          onClick={(e) => {
                             if (isEditing) {
                               setEditingCell(null);
                             } else {
+                              const rect = e.currentTarget.getBoundingClientRect();
                               setEditingCell({
                                 investmentId: row.investment_id,
                                 fy: col.fy,
                                 periodLabel,
                                 record,
+                                anchor: { top: rect.bottom, left: rect.left + rect.width / 2 },
                               });
                             }
                           }}
@@ -583,7 +585,7 @@ export default function FinancialTrackerTab({ investments }) {
                               });
                             }
                           }}
-                          className={`w-full h-full px-1 py-2 flex items-center justify-center rounded transition-colors hover:opacity-80 ${cfg.cls}`}
+                          className={`w-full h-full px-1 py-2 flex items-center justify-center rounded transition-colors hover:opacity-80 ${isEditing ? "ring-2 ring-blue-400" : ""} ${cfg.cls}`}
                           title={`${cfg.label}${record?.notes ? ` — ${record.notes}` : ""}${hasStatements ? " · Double-click to view statements" : ""}`}
                         >
                           <span className="text-sm">{cfg.icon}</span>
@@ -591,16 +593,6 @@ export default function FinancialTrackerTab({ investments }) {
                             <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-blue-500" />
                           )}
                         </button>
-                        {isEditing && (
-                          <CellPopover
-                            cell={editingCell}
-                            onSave={() => {
-                              setEditingCell(null);
-                              loadGrid();
-                            }}
-                            onClose={() => setEditingCell(null)}
-                          />
-                        )}
                       </td>
                     );
                   })}
@@ -609,6 +601,18 @@ export default function FinancialTrackerTab({ investments }) {
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* Cell popover — rendered outside the overflow table so it's never clipped */}
+      {editingCell && (
+        <CellPopover
+          cell={editingCell}
+          onSave={() => {
+            setEditingCell(null);
+            loadGrid();
+          }}
+          onClose={() => setEditingCell(null)}
+        />
       )}
 
       {/* Settings modal */}
