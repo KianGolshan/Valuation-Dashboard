@@ -21,6 +21,59 @@ function IssueBadge({ issue }) {
   );
 }
 
+function PriorityItem({ item, investmentId, onParseTriggered }) {
+  const [parsing, setParsing] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const isParseable = item.issues.some(
+    (i) => i.type === "never_parsed" || i.type === "parse_failure"
+  );
+
+  async function handleParse() {
+    if (!investmentId || !item.document_id) return;
+    setParsing(true);
+    try {
+      await api.triggerParsing(investmentId, item.document_id);
+      setDone(true);
+      if (onParseTriggered) onParseTriggered(item.document_id);
+    } catch {
+      // show nothing — document list will reflect the state
+    } finally {
+      setParsing(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center justify-between py-1.5 gap-2">
+      <div className="flex items-center gap-2 min-w-0 flex-1">
+        <span className="text-sm font-medium text-gray-800 truncate">
+          {item.document_name || item.original_filename}
+        </span>
+        <span className="text-xs text-gray-400 font-mono shrink-0">
+          Score: {item.priority_score}
+        </span>
+      </div>
+      <div className="flex items-center gap-1 flex-shrink-0 flex-wrap justify-end">
+        {item.issues.map((issue, idx) => (
+          <IssueBadge key={idx} issue={issue} />
+        ))}
+        {isParseable && investmentId && !done && (
+          <button
+            onClick={handleParse}
+            disabled={parsing}
+            className="text-xs bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white px-2 py-0.5 rounded transition"
+          >
+            {parsing ? "Queuing..." : "Parse Now"}
+          </button>
+        )}
+        {done && (
+          <span className="text-xs text-green-600 font-medium">Queued</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function PriorityQueueWidget({ investmentId }) {
   const [items, setItems] = useState([]);
   const [collapsed, setCollapsed] = useState(true);
@@ -34,13 +87,18 @@ export default function PriorityQueueWidget({ investmentId }) {
           : await api.getPriorityQueue();
         setItems(data);
       } catch {
-        // ignore
+        // non-critical — widget simply doesn't appear
       } finally {
         setLoading(false);
       }
     }
     load();
   }, [investmentId]);
+
+  function handleParseTriggered(docId) {
+    // Remove the item from the list once queued — it'll reappear if parse fails
+    setItems((prev) => prev.filter((i) => i.document_id !== docId));
+  }
 
   if (loading || items.length === 0) return null;
 
@@ -61,26 +119,14 @@ export default function PriorityQueueWidget({ investmentId }) {
         <span className="text-orange-400 text-sm">{collapsed ? "\u25BC" : "\u25B2"}</span>
       </button>
       {!collapsed && (
-        <div className="border-t border-orange-200 px-4 py-2 space-y-2">
+        <div className="border-t border-orange-200 px-4 py-2 space-y-1">
           {items.map((item) => (
-            <div
+            <PriorityItem
               key={item.document_id}
-              className="flex items-center justify-between py-1.5"
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="text-sm font-medium text-gray-800 truncate">
-                  {item.document_name || item.original_filename}
-                </span>
-                <span className="text-xs text-gray-400 font-mono">
-                  Score: {item.priority_score}
-                </span>
-              </div>
-              <div className="flex items-center gap-1 flex-shrink-0">
-                {item.issues.map((issue, idx) => (
-                  <IssueBadge key={idx} issue={issue} />
-                ))}
-              </div>
-            </div>
+              item={item}
+              investmentId={investmentId}
+              onParseTriggered={handleParseTriggered}
+            />
           ))}
         </div>
       )}

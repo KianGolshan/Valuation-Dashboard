@@ -211,6 +211,20 @@ def get_key_metrics_by_period(
     return {"investment_id": investment_id, "periods": periods}
 
 
+@router.get("/financials/{investment_id}/ratios")
+def get_investment_ratios(
+    investment_id: int,
+    db: Session = Depends(get_db),
+):
+    """Compute financial ratios from existing line items for an investment.
+
+    Each ratio uses the most recent available statement of its required type.
+    Returns None for the value field when required data is unavailable.
+    """
+    from app.financial_parsing.ratio_service import compute_ratios
+    return {"investment_id": investment_id, "ratios": compute_ratios(db, investment_id)}
+
+
 @router.get("/financials/{investment_id}/unmapped-statements")
 def get_unmapped_statements(
     investment_id: int,

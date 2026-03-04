@@ -7,6 +7,7 @@ import ParseValidationPanel from "./ParseValidationPanel";
 import ValuationPanel from "./ValuationPanel";
 import ComparablesPanel from "./ComparablesPanel";
 import FinancialDataView from "./FinancialDataView";
+import AIInsightsPanel from "./AIInsightsPanel";
 
 function formatSize(bytes) {
   if (bytes < 1024) return `${bytes} B`;
@@ -441,6 +442,7 @@ export default function InvestmentPanel({
     { key: "financials", label: "Financials" },
     { key: "valuations", label: "Valuations" },
     { key: "comparables", label: "Comparables" },
+    { key: "ai_insights", label: "AI Insights" },
   ];
 
   return (
@@ -573,6 +575,7 @@ export default function InvestmentPanel({
         <FinancialDataView
           investmentId={investment.id}
           investmentName={investment.investment_name}
+          onGoToDocuments={() => setActiveTab("overview")}
         />
       )}
 
@@ -582,6 +585,13 @@ export default function InvestmentPanel({
 
       {activeTab === "comparables" && (
         <ComparablesPanel investmentId={investment.id} />
+      )}
+
+      {activeTab === "ai_insights" && (
+        <AIInsightsPanel
+          investmentId={investment.id}
+          investmentName={investment.investment_name}
+        />
       )}
 
       {/* Modals stay outside tab conditional */}

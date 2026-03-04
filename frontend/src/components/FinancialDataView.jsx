@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, Fragment } from "react";
 import { api } from "../api";
 import PriorityQueueWidget from "./PriorityQueue";
+import RatioKPICards from "./RatioKPICards";
 
 const STATEMENT_TABS = [
   { key: "income_statement", label: "Income Statement" },
@@ -519,7 +520,7 @@ function StatementCard({ statement, showEdited, onSaveItem, showNormalized }) {
   );
 }
 
-export default function FinancialDataView({ investmentId, investmentName }) {
+export default function FinancialDataView({ investmentId, investmentName, onGoToDocuments }) {
   const [statements, setStatements] = useState([]);
   const [dashboardData, setDashboardData] = useState(null);
   const [trendsData, setTrendsData] = useState(null);
@@ -527,7 +528,7 @@ export default function FinancialDataView({ investmentId, investmentName }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("income_statement");
-  const [viewMode, setViewMode] = useState("statements"); // statements | comparison | trends | changes
+  const [viewMode, setViewMode] = useState("ratios"); // ratios | statements | comparison | trends | changes
   const [showEdited, setShowEdited] = useState(true);
   const [showNormalized, setShowNormalized] = useState(false);
 
@@ -567,6 +568,9 @@ export default function FinancialDataView({ investmentId, investmentName }) {
   async function handleReview(statementId, status) {
     try {
       await api.reviewStatement(statementId, { review_status: status });
+      if (status === "approved") {
+        window.dispatchEvent(new CustomEvent("statements-approved"));
+      }
       load();
     } catch (e) {
       setError(e.message);
@@ -631,6 +635,7 @@ export default function FinancialDataView({ investmentId, investmentName }) {
             onChange={(e) => setViewMode(e.target.value)}
             className="text-sm border border-gray-300 rounded px-2 py-1"
           >
+            <option value="ratios">Ratios & KPIs</option>
             <option value="statements">Statement View</option>
             <option value="comparison">Period Comparison</option>
             <option value="changes">Period Changes</option>
@@ -704,11 +709,27 @@ export default function FinancialDataView({ investmentId, investmentName }) {
 
       {!loading && statements.length === 0 && (
         <div className="text-center py-16 text-gray-400">
-          No financial statements have been mapped to this investment yet.
-          <br />
-          <span className="text-sm">
-            Parse a PDF document first, then map statements to this investment.
-          </span>
+          <p className="text-base font-medium text-gray-600 mb-2">No financial data yet</p>
+          <p className="text-sm mb-5">
+            Upload a PDF, parse it, then map the statements to this investment.
+          </p>
+          {onGoToDocuments && (
+            <button
+              onClick={onGoToDocuments}
+              className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded transition"
+            >
+              Go to Documents &rarr;
+            </button>
+          )}
+        </div>
+      )}
+
+      {!loading && viewMode === "ratios" && (
+        <div>
+          <p className="text-xs text-gray-400 mb-4">
+            Computed from the most recent available statement of each type. Each card shows its source period.
+          </p>
+          <RatioKPICards investmentId={investmentId} />
         </div>
       )}
 
