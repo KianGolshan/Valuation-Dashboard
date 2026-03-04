@@ -1,7 +1,8 @@
 """Idempotent startup migrations for adding new columns to existing tables.
 
 SQLAlchemy's create_all() doesn't add columns to existing tables, so we
-use ALTER TABLE via PRAGMA table_info() checks.
+use ALTER TABLE with dialect-aware schema introspection.
+SQLite uses PRAGMA table_info(); Postgres uses information_schema.columns.
 """
 
 import logging
@@ -13,9 +14,34 @@ logger = logging.getLogger(__name__)
 
 
 def _get_existing_columns(engine: Engine, table_name: str) -> set[str]:
+    dialect = engine.dialect.name
     with engine.connect() as conn:
-        rows = conn.execute(text(f"PRAGMA table_info({table_name})")).fetchall()
-    return {row[1] for row in rows}
+        if dialect == "sqlite":
+            rows = conn.execute(text(f"PRAGMA table_info({table_name})")).fetchall()
+            return {row[1] for row in rows}
+        else:
+            rows = conn.execute(
+                text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name = :t AND table_schema = 'public'"
+                ),
+                {"t": table_name},
+            ).fetchall()
+            return {row[0] for row in rows}
+
+
+def _pg_type(sqlite_type: str) -> str:
+    """Map SQLite column type to Postgres-compatible DDL type."""
+    mapping = {
+        "INTEGER": "INTEGER",
+        "REAL": "DOUBLE PRECISION",
+        "TEXT": "TEXT",
+        "DATETIME": "TIMESTAMP",
+        "BOOLEAN": "BOOLEAN",
+        "VARCHAR(255)": "VARCHAR(255)",
+        "VARCHAR(100)": "VARCHAR(100)",
+    }
+    return mapping.get(sqlite_type, sqlite_type)
 
 
 def _add_column_if_missing(
@@ -24,11 +50,13 @@ def _add_column_if_missing(
 ):
     if column_name in existing_columns:
         return
-    ddl = f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}"
+    dialect = engine.dialect.name
+    col_type_ddl = column_type if dialect == "sqlite" else _pg_type(column_type)
+    ddl = f"ALTER TABLE {table_name} ADD COLUMN {column_name} {col_type_ddl}"
     with engine.connect() as conn:
         conn.execute(text(ddl))
         conn.commit()
-    logger.info("Migration: added %s.%s (%s)", table_name, column_name, column_type)
+    logger.info("Migration: added %s.%s (%s)", table_name, column_name, col_type_ddl)
 
 
 def startup_migrations(engine: Engine):

@@ -277,6 +277,9 @@ export const api = {
   getKeyMetricsByPeriod: (investmentId) =>
     request(`${API}/dashboard/financials/${investmentId}/key-metrics`),
 
+  getRatios: (investmentId) =>
+    request(`${API}/dashboard/financials/${investmentId}/ratios`),
+
   // Comparables — Profile
   upsertProfile: (investmentId, data) =>
     request(`${API}/investments/${investmentId}/profile`, {

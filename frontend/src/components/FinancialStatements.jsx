@@ -82,8 +82,38 @@ function EditableValue({ item, onSave, locked }) {
   );
 }
 
+/** Derive a suggested standard period label from an ISO date string */
+function deriveStandardLabel(periodEndDate, statementPeriod) {
+  // Try to infer from the period_end_date
+  if (periodEndDate) {
+    try {
+      const d = new Date(periodEndDate + "T00:00:00");
+      const month = d.getMonth() + 1; // 1-indexed
+      const year = d.getFullYear();
+      const q = Math.ceil(month / 3);
+      return `Q${q} FY${year}`;
+    } catch { /* fall through */ }
+  }
+  return "";
+}
+
+const STANDARD_PERIOD_OPTIONS = (year) => [
+  `Q1 FY${year}`, `Q2 FY${year}`, `Q3 FY${year}`, `Q4 FY${year}`,
+  `FY${year}`, `FY${year} Audited`,
+  `Q1 FY${year - 1}`, `Q2 FY${year - 1}`, `Q3 FY${year - 1}`, `Q4 FY${year - 1}`,
+  `FY${year - 1}`, `FY${year - 1} Audited`,
+];
+
 function StatementTable({ statement, onSaveItem, onReview, onLock, investmentId, onTrace }) {
   const [mapping, setMapping] = useState(false);
+  const [showMapForm, setShowMapForm] = useState(false);
+  const [mapError, setMapError] = useState("");
+
+  const currentYear = new Date().getFullYear();
+  const suggested = deriveStandardLabel(statement.period_end_date, statement.period);
+  const [periodLabel, setPeriodLabel] = useState(suggested || `Q1 FY${currentYear}`);
+  const [customLabel, setCustomLabel] = useState("");
+  const [useCustom, setUseCustom] = useState(false);
 
   if (!statement || !statement.line_items || statement.line_items.length === 0) {
     return (
@@ -93,24 +123,32 @@ function StatementTable({ statement, onSaveItem, onReview, onLock, investmentId,
     );
   }
 
-  async function handleAutoMap() {
+  async function handleMap() {
     setMapping(true);
+    setMapError("");
+    const label = useCustom ? customLabel.trim() : periodLabel;
+    if (!label) {
+      setMapError("Period label is required.");
+      setMapping(false);
+      return;
+    }
     try {
       await api.mapStatementToInvestment(statement.id, {
         investment_id: investmentId,
         reporting_date: statement.period_end_date,
-        fiscal_period_label: statement.period,
+        fiscal_period_label: label,
       });
-    } catch {
-      // ignore
+      setShowMapForm(false);
+    } catch (e) {
+      setMapError(e.message || "Mapping failed.");
     }
     setMapping(false);
   }
 
   return (
     <div>
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
+      <div className="mb-3 flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="font-medium text-sm text-gray-900">{statement.period}</span>
           {statement.period_end_date && (
             <span className="text-xs text-gray-400">
@@ -124,18 +162,63 @@ function StatementTable({ statement, onSaveItem, onReview, onLock, investmentId,
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          {!statement.investment_id && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {!statement.investment_id && !showMapForm && (
             <button
-              onClick={handleAutoMap}
-              disabled={mapping}
+              onClick={() => setShowMapForm(true)}
               className="text-xs text-purple-600 hover:text-purple-800 font-medium"
             >
-              {mapping ? "Mapping..." : "Map to Investment"}
+              Map to Investment
             </button>
           )}
+          {!statement.investment_id && showMapForm && (
+            <div className="flex items-center gap-1 flex-wrap bg-purple-50 border border-purple-200 rounded px-2 py-1">
+              <span className="text-xs text-gray-600 mr-1">Period label:</span>
+              {!useCustom ? (
+                <select
+                  value={periodLabel}
+                  onChange={(e) => setPeriodLabel(e.target.value)}
+                  className="text-xs border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-purple-400"
+                >
+                  {STANDARD_PERIOD_OPTIONS(currentYear).map((opt) => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  value={customLabel}
+                  onChange={(e) => setCustomLabel(e.target.value)}
+                  placeholder="e.g. Q1 FY2025"
+                  className="text-xs border border-gray-300 rounded px-1 py-0.5 w-28 focus:outline-none focus:ring-1 focus:ring-purple-400"
+                />
+              )}
+              <button
+                onClick={() => setUseCustom(!useCustom)}
+                className="text-xs text-gray-400 hover:text-gray-600 underline"
+              >
+                {useCustom ? "Dropdown" : "Custom"}
+              </button>
+              <button
+                onClick={handleMap}
+                disabled={mapping}
+                className="text-xs bg-purple-600 hover:bg-purple-700 text-white px-2 py-0.5 rounded disabled:opacity-50"
+              >
+                {mapping ? "Saving..." : "Confirm"}
+              </button>
+              <button
+                onClick={() => { setShowMapForm(false); setMapError(""); }}
+                className="text-xs text-gray-400 hover:text-gray-600"
+              >
+                Cancel
+              </button>
+              {mapError && <span className="text-xs text-red-500 w-full mt-0.5">{mapError}</span>}
+            </div>
+          )}
           {statement.investment_id && (
-            <span className="text-xs text-green-600">Mapped</span>
+            <span className="text-xs text-green-600 font-medium">
+              ✓ Mapped{statement.fiscal_period_label ? ` · ${statement.fiscal_period_label}` : ""}
+            </span>
           )}
           <button
             onClick={() => onReview(statement.id, "reviewed")}
@@ -321,12 +404,14 @@ export default function FinancialStatements({
     load();
   }, [load]);
 
-  // Poll while parsing
+  // Poll while parsing — track consecutive failures to surface network issues
   useEffect(() => {
     if (!parsing) return;
+    let failCount = 0;
     const interval = setInterval(async () => {
       try {
         const status = await api.getParseStatus(investmentId, document.id);
+        failCount = 0; // reset on success
         if (!status || status.status === "completed" || status.status === "failed") {
           setParsing(false);
           load();
@@ -336,7 +421,12 @@ export default function FinancialStatements({
           );
         }
       } catch {
-        // ignore polling errors
+        failCount += 1;
+        if (failCount >= 3) {
+          setError(
+            "Connection issue while checking parse status. Parsing may still be running — refresh to check."
+          );
+        }
       }
     }, 2000);
     return () => clearInterval(interval);
@@ -374,6 +464,9 @@ export default function FinancialStatements({
   async function handleReview(statementId, status) {
     try {
       await api.reviewStatement(statementId, { review_status: status });
+      if (status === "approved") {
+        window.dispatchEvent(new CustomEvent("statements-approved"));
+      }
       load();
     } catch (e) {
       setError(e.message);

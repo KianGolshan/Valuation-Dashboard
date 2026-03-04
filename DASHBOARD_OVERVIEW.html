@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Valuation Dashboard — System Overview</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f8fafc; color: #1e293b; line-height: 1.6; }
+
+  /* Layout */
+  .page { max-width: 1100px; margin: 0 auto; padding: 48px 32px; }
+  h1 { font-size: 2rem; font-weight: 800; color: #0f172a; margin-bottom: 8px; }
+  .subtitle { color: #64748b; font-size: 1rem; margin-bottom: 48px; }
+
+  /* Section headers */
+  h2 { font-size: 1.2rem; font-weight: 700; color: #1e293b; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid #e2e8f0; }
+  h3 { font-size: 0.95rem; font-weight: 700; margin-bottom: 8px; }
+
+  /* Sections */
+  .section { margin-bottom: 48px; }
+
+  /* Pipeline diagram */
+  .pipeline { display: flex; align-items: stretch; gap: 0; margin-bottom: 24px; flex-wrap: nowrap; overflow-x: auto; }
+  .pipe-step { flex: 1; min-width: 130px; background: white; border: 1.5px solid #e2e8f0; border-right: none; padding: 16px 12px; position: relative; }
+  .pipe-step:last-child { border-right: 1.5px solid #e2e8f0; }
+  .pipe-step::after {
+    content: "";
+    position: absolute;
+    right: -18px;
+    top: 50%;
+    transform: translateY(-50%);
+    border: 10px solid transparent;
+    border-left: 10px solid #e2e8f0;
+    z-index: 2;
+  }
+  .pipe-step:last-child::after { display: none; }
+  .pipe-step::before {
+    content: "";
+    position: absolute;
+    right: -16px;
+    top: 50%;
+    transform: translateY(-50%);
+    border: 10px solid transparent;
+    border-left: 10px solid white;
+    z-index: 3;
+  }
+  .pipe-step:last-child::before { display: none; }
+  .step-num { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; font-size: 0.7rem; font-weight: 700; color: white; margin-bottom: 6px; }
+  .step-title { font-size: 0.8rem; font-weight: 700; color: #0f172a; margin-bottom: 4px; }
+  .step-detail { font-size: 0.7rem; color: #64748b; }
+  .step-badge { display: inline-block; font-size: 0.65rem; background: #f1f5f9; color: #475569; border-radius: 4px; padding: 1px 5px; margin-top: 4px; }
+
+  /* Color palette for steps */
+  .c1 { background: #6366f1; }
+  .c2 { background: #8b5cf6; }
+  .c3 { background: #a855f7; }
+  .c4 { background: #d946ef; }
+  .c5 { background: #ec4899; }
+  .c6 { background: #f59e0b; }
+  .c7 { background: #10b981; }
+  .c8 { background: #3b82f6; }
+
+  /* Architecture boxes */
+  .arch-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .arch-box { background: white; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 20px; }
+  .arch-box h3 { font-size: 0.85rem; font-weight: 700; color: #0f172a; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #f1f5f9; }
+  .arch-item { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 8px; font-size: 0.8rem; }
+  .arch-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+  .dot-blue { background: #3b82f6; }
+  .dot-purple { background: #8b5cf6; }
+  .dot-green { background: #10b981; }
+  .dot-orange { background: #f59e0b; }
+  .dot-red { background: #ef4444; }
+  .dot-gray { background: #94a3b8; }
+
+  /* UI tabs grid */
+  .tabs-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+  .tab-card { background: white; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 16px 12px; }
+  .tab-card .tab-label { font-size: 0.75rem; font-weight: 700; color: #0f172a; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 2px solid; }
+  .tab-card ul { list-style: none; padding: 0; }
+  .tab-card ul li { font-size: 0.7rem; color: #475569; margin-bottom: 4px; padding-left: 10px; position: relative; }
+  .tab-card ul li::before { content: "•"; position: absolute; left: 0; color: #94a3b8; }
+
+  /* Data flow */
+  .flow-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+  .flow-table th { background: #f8fafc; font-weight: 700; color: #475569; text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.05em; padding: 10px 12px; border-bottom: 2px solid #e2e8f0; text-align: left; }
+  .flow-table td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+  .flow-table tr:last-child td { border-bottom: none; }
+  .method { display: inline-block; font-size: 0.65rem; font-weight: 700; padding: 1px 6px; border-radius: 4px; color: white; margin-right: 4px; }
+  .get { background: #10b981; }
+  .post { background: #3b82f6; }
+  .put { background: #f59e0b; }
+  .patch { background: #8b5cf6; }
+  .del { background: #ef4444; }
+
+  /* Walkthrough */
+  .walkthrough { counter-reset: step; }
+  .wt-step { display: flex; gap: 20px; margin-bottom: 28px; }
+  .wt-num { flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.85rem; color: white; }
+  .wt-content { flex: 1; }
+  .wt-title { font-weight: 700; font-size: 0.95rem; color: #0f172a; margin-bottom: 4px; }
+  .wt-desc { font-size: 0.82rem; color: #475569; margin-bottom: 8px; }
+  .wt-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+  .wt-action { font-size: 0.7rem; background: #f1f5f9; color: #1e293b; padding: 3px 10px; border-radius: 20px; border: 1px solid #e2e8f0; }
+  .wt-result { font-size: 0.75rem; color: #64748b; margin-top: 6px; font-style: italic; }
+
+  /* Color overrides */
+  .blue { border-color: #3b82f6; }
+  .blue .tab-label { border-color: #3b82f6; color: #2563eb; }
+  .purple { border-color: #8b5cf6; }
+  .purple .tab-label { border-color: #8b5cf6; color: #7c3aed; }
+  .green { border-color: #10b981; }
+  .green .tab-label { border-color: #10b981; color: #059669; }
+  .orange { border-color: #f59e0b; }
+  .orange .tab-label { border-color: #f59e0b; color: #d97706; }
+  .indigo { border-color: #6366f1; }
+  .indigo .tab-label { border-color: #6366f1; color: #4f46e5; }
+
+  /* AI diagram */
+  .ai-flow { display: flex; flex-direction: column; gap: 8px; }
+  .ai-row { display: flex; align-items: center; gap: 10px; font-size: 0.78rem; }
+  .ai-box { background: white; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 8px 14px; flex: 1; }
+  .ai-arrow { color: #94a3b8; font-size: 1.1rem; flex-shrink: 0; }
+  .ai-note { font-size: 0.7rem; color: #94a3b8; }
+
+  /* Token budget box */
+  .budget-box { background: #fef3c7; border: 1.5px solid #fbbf24; border-radius: 8px; padding: 12px 16px; font-size: 0.78rem; color: #92400e; margin-top: 12px; }
+  .budget-box strong { color: #78350f; }
+
+  /* Connector lines */
+  .connector { display: flex; align-items: center; gap: 8px; font-size: 0.7rem; color: #94a3b8; margin-bottom: 8px; }
+  .connector-line { flex: 1; height: 1px; background: #e2e8f0; }
+
+  @media (max-width: 700px) {
+    .arch-grid { grid-template-columns: 1fr; }
+    .tabs-grid { grid-template-columns: 1fr 1fr; }
+    .pipeline { flex-direction: column; }
+    .pipe-step::after, .pipe-step::before { display: none; }
+    .pipe-step { border-right: 1.5px solid #e2e8f0; border-bottom: none; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>Valuation Dashboard</h1>
+  <p class="subtitle">Full-stack private equity portfolio platform — system overview, data flow, and end-to-end walkthrough</p>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section">
+    <h2>1. Data Pipeline — End-to-End Flow</h2>
+    <div class="pipeline">
+      <div class="pipe-step">
+        <div class="step-num c1">1</div>
+        <div class="step-title">Create Investment</div>
+        <div class="step-detail">Name, asset type, series, description</div>
+        <div class="step-badge">POST /investments/</div>
+      </div>
+      <div class="pipe-step">
+        <div class="step-num c2">2</div>
+        <div class="step-title">Add Securities</div>
+        <div class="step-detail">Round, size, price/share, date</div>
+        <div class="step-badge">POST /securities/</div>
+      </div>
+      <div class="pipe-step">
+        <div class="step-num c3">3</div>
+        <div class="step-title">Upload Documents</div>
+        <div class="step-detail">PDF, Excel, Word. Auto-parse PDFs</div>
+        <div class="step-badge">POST /documents/bulk</div>
+      </div>
+      <div class="pipe-step">
+        <div class="step-num c4">4</div>
+        <div class="step-title">AI Parsing</div>
+        <div class="step-detail">Claude extracts IS / BS / CF line items in chunks</div>
+        <div class="step-badge">Claude API</div>
+      </div>
+      <div class="pipe-step">
+        <div class="step-num c5">5</div>
+        <div class="step-title">Review &amp; Map</div>
+        <div class="step-detail">Select period label, approve statements</div>
+        <div class="step-badge">POST /map-investment</div>
+      </div>
+      <div class="pipe-step">
+        <div class="step-num c6">6</div>
+        <div class="step-title">Financials Analysis</div>
+        <div class="step-detail">Ratios, period comparison, trends, changes</div>
+        <div class="step-badge">GET /ratios &amp; /changes</div>
+      </div>
+      <div class="pipe-step">
+        <div class="step-num c7">7</div>
+        <div class="step-title">Valuation</div>
+        <div class="step-detail">Multiple, price/share, EV, history chart</div>
+        <div class="step-badge">POST /valuations/</div>
+      </div>
+      <div class="pipe-step">
+        <div class="step-num c8">8</div>
+        <div class="step-title">AI Insights</div>
+        <div class="step-detail">Natural language Q&amp;A over financials</div>
+        <div class="step-badge">POST /ai-insights/query</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section">
+    <h2>2. System Architecture</h2>
+    <div class="arch-grid">
+      <div class="arch-box">
+        <h3>Backend (FastAPI + Python)</h3>
+        <div class="arch-item"><div class="arch-dot dot-blue"></div><div><strong>app/main.py</strong> — FastAPI app, all 12 routers registered under /api/v1, CORS, lifespan startup</div></div>
+        <div class="arch-item"><div class="arch-dot dot-purple"></div><div><strong>app/investments/</strong> — Investment CRUD (name, type, series, description, notes)</div></div>
+        <div class="arch-item"><div class="arch-dot dot-purple"></div><div><strong>app/securities/</strong> — Securities per investment (round, size, PPS, dates)</div></div>
+        <div class="arch-item"><div class="arch-dot dot-purple"></div><div><strong>app/documents/</strong> — File upload (50MB limit), download, view, delete; stored in /uploads/</div></div>
+        <div class="arch-item"><div class="arch-dot dot-orange"></div><div><strong>app/financial_parsing/</strong> — Chunked PDF parsing with Claude, statement extraction, review/lock workflow, ratio computation, period comparison, trend aggregation</div></div>
+        <div class="arch-item"><div class="arch-dot dot-green"></div><div><strong>app/valuations/</strong> — Valuation records with methodology, multiple, EV, PPS; Excel export</div></div>
+        <div class="arch-item"><div class="arch-dot dot-blue"></div><div><strong>app/ai_insights/</strong> — SSE streaming endpoint, compact context assembly (&lt;1500 tokens), Claude API streaming</div></div>
+        <div class="arch-item"><div class="arch-dot dot-gray"></div><div><strong>app/comparables/</strong> — Comp sets, company profiles, FMP market data, benchmark lookup</div></div>
+        <div class="arch-item"><div class="arch-dot dot-gray"></div><div><strong>app/financial_tracker/</strong> — Period receipt grid (which investment has Q1 IS, Q2 BS, etc.)</div></div>
+        <div class="arch-item"><div class="arch-dot dot-red"></div><div><strong>app/migrations.py</strong> — Idempotent ALTER TABLE for new columns; dual-dialect (SQLite PRAGMA / Postgres information_schema)</div></div>
+      </div>
+      <div class="arch-box">
+        <h3>Frontend (React + Vite + Tailwind)</h3>
+        <div class="arch-item"><div class="arch-dot dot-blue"></div><div><strong>src/api.js</strong> — Centralized API client; all 40+ endpoints wrapped in named methods</div></div>
+        <div class="arch-item"><div class="arch-dot dot-purple"></div><div><strong>App.jsx</strong> — Root: investment list sidebar + InvestmentPanel main content</div></div>
+        <div class="arch-item"><div class="arch-dot dot-purple"></div><div><strong>InvestmentPanel.jsx</strong> — Tab shell: Overview / Financials / Valuations / Comparables / AI Insights</div></div>
+        <div class="arch-item"><div class="arch-dot dot-orange"></div><div><strong>FinancialStatements.jsx</strong> — Full-screen modal: parse progress, line item table, period label picker, review/lock workflow</div></div>
+        <div class="arch-item"><div class="arch-dot dot-orange"></div><div><strong>FinancialDataView.jsx</strong> — Financials tab: Ratios&KPIs / Statement View / Period Comparison / Period Changes / Key Trends</div></div>
+        <div class="arch-item"><div class="arch-dot dot-orange"></div><div><strong>RatioKPICards.jsx</strong> — 9 computed ratio cards with delta badges; refreshes on statements-approved event</div></div>
+        <div class="arch-item"><div class="arch-dot dot-blue"></div><div><strong>AIInsightsPanel.jsx</strong> — Chat UI with SSE stream reading, scope toggle (single / all), react-markdown rendering</div></div>
+        <div class="arch-item"><div class="arch-dot dot-green"></div><div><strong>UploadModal.jsx</strong> — Drag-and-drop upload, 50MB guard, auto-parse PDFs after upload</div></div>
+        <div class="arch-item"><div class="arch-dot dot-gray"></div><div><strong>PriorityQueue.jsx</strong> — Orange banner widget: lists documents needing action, "Parse Now" button per item</div></div>
+        <div class="arch-item"><div class="arch-dot dot-gray"></div><div><strong>ValuationPanel.jsx</strong> — Valuation form + history chart (Recharts), Excel export</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section">
+    <h2>3. UI Tab Structure — InvestmentPanel</h2>
+    <div class="tabs-grid">
+      <div class="tab-card blue">
+        <div class="tab-label">Overview</div>
+        <ul>
+          <li>Investment header &amp; metadata</li>
+          <li>Securities cards (round, size, PPS, return multiple)</li>
+          <li>Document workflow progress bar</li>
+          <li>Investment-level document table</li>
+          <li>Upload Documents button</li>
+        </ul>
+      </div>
+      <div class="tab-card purple">
+        <div class="tab-label">Financials</div>
+        <ul>
+          <li>Priority Queue widget (orange)</li>
+          <li>Context summary panel</li>
+          <li>View modes: Ratios &amp; KPIs (default)</li>
+          <li>Statement View (editable cells)</li>
+          <li>Period Comparison table</li>
+          <li>Period Changes (abs + %)</li>
+          <li>Key Trends (mini bar charts)</li>
+          <li>Excel export</li>
+        </ul>
+      </div>
+      <div class="tab-card green">
+        <div class="tab-label">Valuations</div>
+        <ul>
+          <li>New valuation form</li>
+          <li>Methodology, multiple, EV, PPS</li>
+          <li>Link to financial metric &amp; period</li>
+          <li>History table + line chart (Recharts)</li>
+          <li>Per-security valuation tracking</li>
+          <li>Excel export</li>
+        </ul>
+      </div>
+      <div class="tab-card orange">
+        <div class="tab-label">Comparables</div>
+        <ul>
+          <li>Company profile (sector, geography)</li>
+          <li>Comp set creation</li>
+          <li>Add companies (manual or FMP search)</li>
+          <li>Market multiples comparison</li>
+          <li>Benchmark sector data</li>
+          <li>Export comp set to Excel</li>
+        </ul>
+      </div>
+      <div class="tab-card indigo">
+        <div class="tab-label">AI Insights</div>
+        <ul>
+          <li>Scope toggle: This Investment / All</li>
+          <li>Chat interface (Enter to send)</li>
+          <li>Real-time SSE streaming</li>
+          <li>Markdown rendering (tables, lists)</li>
+          <li>Session conversation history</li>
+          <li>Context: financials + ratios + valuations</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section">
+    <h2>4. AI Parsing Pipeline — Document → Statements</h2>
+    <div class="ai-flow">
+      <div class="ai-row">
+        <div class="ai-box" style="background:#f0fdf4;border-color:#86efac;">
+          <strong>Upload PDF</strong> — POST /documents/bulk → stored at uploads/{investment_id}/{uuid}.pdf
+        </div>
+      </div>
+      <div class="ai-row">
+        <div class="ai-arrow">↓</div>
+        <div class="ai-note">Auto-triggered immediately after upload</div>
+      </div>
+      <div class="ai-row">
+        <div class="ai-box" style="background:#faf5ff;border-color:#c4b5fd;">
+          <strong>Parse Job Created</strong> — status: pending → splits PDF into chunks of 25 pages (overlap: 5)
+        </div>
+      </div>
+      <div class="ai-row">
+        <div class="ai-arrow">↓</div>
+        <div class="ai-note">Background processing — frontend polls /financials/status every 2s</div>
+      </div>
+      <div class="ai-row">
+        <div class="ai-box" style="background:#fff7ed;border-color:#fed7aa;">
+          <strong>Claude Extraction (claude-sonnet-4-20250514)</strong> — each chunk → structured JSON with IS / BS / CF line items, categories, is_total flags, currency, unit
+        </div>
+      </div>
+      <div class="ai-row">
+        <div class="ai-arrow">↓</div>
+        <div class="ai-note">status: completed — progress bar fills to 100%</div>
+      </div>
+      <div class="ai-row">
+        <div class="ai-box" style="background:#eff6ff;border-color:#93c5fd;">
+          <strong>Review in FinancialStatements.jsx</strong> — view all 3 statement types, edit individual line items, click to edit values/labels inline
+        </div>
+      </div>
+      <div class="ai-row">
+        <div class="ai-arrow">↓</div>
+        <div class="ai-note">Period label picker: dropdown Q1–Q4 / FY / FY Audited + custom</div>
+      </div>
+      <div class="ai-row">
+        <div class="ai-box" style="background:#f0fdf4;border-color:#86efac;">
+          <strong>Map to Investment</strong> — POST /map-investment sets investment_id + fiscal_period_label → statement becomes available for ratio computation and AI context
+        </div>
+      </div>
+      <div class="ai-row">
+        <div class="ai-arrow">↓</div>
+        <div class="ai-note">"Approve" dispatches statements-approved event → RatioKPICards auto-refreshes</div>
+      </div>
+      <div class="ai-row">
+        <div class="ai-box" style="background:#fdf4ff;border-color:#e879f9;">
+          <strong>Normalize Labels</strong> — optional: maps raw extracted labels → canonical categories (revenue, gross_profit, etc.) for cross-period alignment
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section">
+    <h2>5. Ratio Computation — 9 KPI Cards</h2>
+    <div class="arch-grid">
+      <div class="arch-box">
+        <h3>Income Statement Ratios</h3>
+        <div class="arch-item"><div class="arch-dot dot-green"></div><div><strong>Gross Margin</strong> = Gross Profit / Revenue × 100 — shows delta vs prior IS period</div></div>
+        <div class="arch-item"><div class="arch-dot dot-green"></div><div><strong>EBITDA Margin</strong> = (Op. Income + D&A) / Revenue × 100 — uses EBIT as proxy if D&A unavailable</div></div>
+        <div class="arch-item"><div class="arch-dot dot-green"></div><div><strong>Net Margin</strong> = Net Income / Revenue × 100 — delta vs prior period</div></div>
+        <div class="arch-item"><div class="arch-dot dot-orange"></div><div><strong>Revenue Growth YoY</strong> — true YoY: same fiscal quarter, prior year; requires period label to parse (Q1 FY2025 vs Q1 FY2024)</div></div>
+      </div>
+      <div class="arch-box">
+        <h3>Balance Sheet &amp; Cash Flow Ratios</h3>
+        <div class="arch-item"><div class="arch-dot dot-blue"></div><div><strong>Current Ratio</strong> = Current Assets / Current Liabilities — liquidity check</div></div>
+        <div class="arch-item"><div class="arch-dot dot-blue"></div><div><strong>Quick Ratio</strong> = (Cash + ST Investments + AR) / Current Liabilities — stricter liquidity</div></div>
+        <div class="arch-item"><div class="arch-dot dot-red"></div><div><strong>Debt / Equity</strong> = (ST Debt + LT Debt) / Equity — leverage; delta red = good</div></div>
+        <div class="arch-item"><div class="arch-dot dot-purple"></div><div><strong>Burn Rate</strong> = |OCF| / period months — shows "Profitable" if OCF ≥ 0; monthly</div></div>
+        <div class="arch-item"><div class="arch-dot dot-purple"></div><div><strong>Runway</strong> = Ending Cash / Monthly Burn — only shown when burning; "Profitable" if OCF ≥ 0</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section">
+    <h2>6. AI Insights — Context &amp; Streaming</h2>
+    <div class="arch-grid">
+      <div class="arch-box">
+        <h3>Context Assembly (service.py)</h3>
+        <div class="arch-item"><div class="arch-dot dot-blue"></div><div><strong>Investment header</strong>: name, asset type, series</div></div>
+        <div class="arch-item"><div class="arch-dot dot-purple"></div><div><strong>Securities</strong>: round, date, size, cost basis per share</div></div>
+        <div class="arch-item"><div class="arch-dot dot-orange"></div><div><strong>Financials</strong>: pipe-delimited compact rows (cat|value|period), is_total only, max 6 periods — sorted approved &gt; reviewed &gt; pending</div></div>
+        <div class="arch-item"><div class="arch-dot dot-green"></div><div><strong>Ratios</strong>: all 9 computed ratios in compact format (GrossMargin:42.3%@Q3FY25 Δ=+2.1pp)</div></div>
+        <div class="arch-item"><div class="arch-dot dot-gray"></div><div><strong>Valuations</strong>: last 6 records (date, methodology, multiple, PPS, EV)</div></div>
+        <div class="budget-box"><strong>Token budget:</strong> &lt;1,500 tokens single investment · &lt;2,000 tokens all-investments (IS totals only) · System prompt &lt;150 tokens</div>
+      </div>
+      <div class="arch-box">
+        <h3>Streaming Architecture</h3>
+        <div class="arch-item"><div class="arch-dot dot-blue"></div><div>POST /api/v1/ai-insights/query → FastAPI StreamingResponse (text/event-stream)</div></div>
+        <div class="arch-item"><div class="arch-dot dot-purple"></div><div>Each chunk: <code>data: {"text":"..."}\n\n</code> — terminated by <code>data: [DONE]</code></div></div>
+        <div class="arch-item"><div class="arch-dot dot-orange"></div><div>Frontend uses native fetch + ReadableStream + TextDecoder — NOT the api.js JSON client</div></div>
+        <div class="arch-item"><div class="arch-dot dot-green"></div><div>Accumulated text shown live with cursor blink; finalized as react-markdown on [DONE]</div></div>
+        <div class="arch-item"><div class="arch-dot dot-gray"></div><div>Conversation history passed client-side (session only — no server persistence)</div></div>
+        <div class="arch-item"><div class="arch-dot dot-gray"></div><div>Context injected into first user message as &lt;financial_data&gt; block; subsequent turns are plain text</div></div>
+        <div class="arch-item"><div class="arch-dot dot-gray"></div><div>nginx: proxy_buffering off + X-Accel-Buffering: no for SSE pass-through</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section">
+    <h2>7. Key API Endpoints Reference</h2>
+    <table class="flow-table">
+      <thead>
+        <tr>
+          <th>Method</th>
+          <th>Endpoint</th>
+          <th>What it does</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="method post">POST</span></td><td>/api/v1/investments/</td><td>Create a new investment company record</td></tr>
+        <tr><td><span class="method post">POST</span></td><td>/api/v1/investments/{id}/securities/</td><td>Add a security (round, size, PPS, date) to an investment</td></tr>
+        <tr><td><span class="method post">POST</span></td><td>/api/v1/investments/{id}/documents/bulk</td><td>Upload 1+ documents; returns array of DocumentResponse</td></tr>
+        <tr><td><span class="method post">POST</span></td><td>/api/v1/investments/{id}/documents/{doc}/financials/parse</td><td>Queue a PDF for AI parsing (async background job)</td></tr>
+        <tr><td><span class="method get">GET</span></td><td>/api/v1/investments/{id}/documents/{doc}/financials/status</td><td>Poll parse job status (pending/processing/completed/failed)</td></tr>
+        <tr><td><span class="method get">GET</span></td><td>/api/v1/investments/{id}/documents/{doc}/financials/</td><td>Get all extracted statements + parse job for a document</td></tr>
+        <tr><td><span class="method post">POST</span></td><td>/api/v1/financials/statements/{id}/review</td><td>Set review_status (pending/reviewed/approved)</td></tr>
+        <tr><td><span class="method post">POST</span></td><td>/api/v1/financials/statements/{id}/map-investment</td><td>Link statement to investment + set fiscal_period_label</td></tr>
+        <tr><td><span class="method patch">PATCH</span></td><td>/api/v1/financials/line-items/{id}</td><td>Edit a line item value or label (creates user_modified record)</td></tr>
+        <tr><td><span class="method get">GET</span></td><td>/api/v1/dashboard/financials/{id}</td><td>Period-aligned comparison dataset for all statement types</td></tr>
+        <tr><td><span class="method get">GET</span></td><td>/api/v1/dashboard/financials/{id}/ratios</td><td>Compute all 9 financial ratios from latest available statements</td></tr>
+        <tr><td><span class="method get">GET</span></td><td>/api/v1/dashboard/financials/{id}/changes</td><td>Period-over-period absolute and % change for every line item</td></tr>
+        <tr><td><span class="method get">GET</span></td><td>/api/v1/dashboard/financial-trends/{id}</td><td>Key metric time series for mini bar chart sparklines</td></tr>
+        <tr><td><span class="method post">POST</span></td><td>/api/v1/investments/{id}/valuations/</td><td>Record a new valuation (methodology, multiple, EV, PPS)</td></tr>
+        <tr><td><span class="method get">GET</span></td><td>/api/v1/investments/{id}/valuations/export</td><td>Download valuation history as Excel</td></tr>
+        <tr><td><span class="method post">POST</span></td><td>/api/v1/ai-insights/query</td><td>SSE streaming: natural language Q&A over financial context</td></tr>
+        <tr><td><span class="method get">GET</span></td><td>/api/v1/priority-queue/investments/{id}</td><td>List documents needing attention (unparsed, failed, low confidence)</td></tr>
+        <tr><td><span class="method get">GET</span></td><td>/api/v1/workflow/investments/{id}</td><td>Document workflow summary: counts by stage (not_parsed → approved)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section">
+    <h2>8. End-to-End Walkthrough — Acme Corp Example</h2>
+    <div class="walkthrough">
+
+      <div class="wt-step">
+        <div class="wt-num" style="background:#6366f1;">1</div>
+        <div class="wt-content">
+          <div class="wt-title">Create the Investment</div>
+          <div class="wt-desc">Click <strong>"+ New Investment"</strong> in the left sidebar. Fill in the form.</div>
+          <div class="wt-actions">
+            <span class="wt-action">Investment Name: Acme Corp</span>
+            <span class="wt-action">Asset Type: Venture Capital</span>
+            <span class="wt-action">Series: Series B</span>
+            <span class="wt-action">Description: B2B SaaS, ARR $8M</span>
+          </div>
+          <div class="wt-result">→ Acme Corp appears in the sidebar and opens in InvestmentPanel. Overview tab is active.</div>
+        </div>
+      </div>
+
+      <div class="wt-step">
+        <div class="wt-num" style="background:#8b5cf6;">2</div>
+        <div class="wt-content">
+          <div class="wt-title">Add a Security (the specific shares you own)</div>
+          <div class="wt-desc">On the Overview tab, click <strong>"+ Add your first security"</strong>.</div>
+          <div class="wt-actions">
+            <span class="wt-action">Round: Series B Preferred</span>
+            <span class="wt-action">Investment Date: 2023-06-15</span>
+            <span class="wt-action">Investment Size: $5,000,000</span>
+            <span class="wt-action">Price per Share: $12.50</span>
+          </div>
+          <div class="wt-result">→ Security card appears showing cost basis $12.50/sh. Return multiple will update once a valuation is entered.</div>
+        </div>
+      </div>
+
+      <div class="wt-step">
+        <div class="wt-num" style="background:#a855f7;">3</div>
+        <div class="wt-content">
+          <div class="wt-title">Upload Financial Statements (PDF)</div>
+          <div class="wt-desc">Click <strong>"Upload Documents"</strong> on the Overview tab. Drag-and-drop <em>Acme_Q3_2025_Financials.pdf</em> into the modal.</div>
+          <div class="wt-actions">
+            <span class="wt-action">Document Name: Q3 2025 Financials</span>
+            <span class="wt-action">Document Date: 2025-09-30</span>
+            <span class="wt-action">50MB max enforced client-side</span>
+          </div>
+          <div class="wt-result">→ Upload completes → PDF auto-queued for parsing → "Queuing parse..." shown briefly → document appears in the table with "Not Parsed" status.</div>
+        </div>
+      </div>
+
+      <div class="wt-step">
+        <div class="wt-num" style="background:#d946ef;">4</div>
+        <div class="wt-content">
+          <div class="wt-title">AI Parses the PDF</div>
+          <div class="wt-desc">Click <strong>"Financials"</strong> button next to the document in the table. The FinancialStatements modal opens. A progress bar fills as Claude processes the PDF in 25-page chunks.</div>
+          <div class="wt-actions">
+            <span class="wt-action">Status: Parsing... 3/4 chunks</span>
+            <span class="wt-action">Auto-polls every 2 seconds</span>
+            <span class="wt-action">Failure counter shows error if 3 consecutive polls fail</span>
+          </div>
+          <div class="wt-result">→ Parse complete → Income Statement, Balance Sheet, and Cash Flow tabs populate with all extracted line items.</div>
+        </div>
+      </div>
+
+      <div class="wt-step">
+        <div class="wt-num" style="background:#ec4899;">5</div>
+        <div class="wt-content">
+          <div class="wt-title">Review &amp; Map Statements to the Investment</div>
+          <div class="wt-desc">In the FinancialStatements modal, inspect line items. Click any value to edit inline. Then click <strong>"Map to Investment"</strong> and select the standard period label.</div>
+          <div class="wt-actions">
+            <span class="wt-action">Period Label: Q3 FY2025</span>
+            <span class="wt-action">Dropdown: Q1–Q4 / FY / FY Audited</span>
+            <span class="wt-action">Or type a custom label</span>
+          </div>
+          <div class="wt-result">→ Statement links to Acme Corp with label "Q3 FY2025". Click <strong>"Approve"</strong> → green badge → statements-approved event fires → Ratio KPI cards auto-refresh.</div>
+        </div>
+      </div>
+
+      <div class="wt-step">
+        <div class="wt-num" style="background:#f59e0b;">6</div>
+        <div class="wt-content">
+          <div class="wt-title">View Period-over-Period Changes (Financials Tab)</div>
+          <div class="wt-desc">Navigate to the <strong>Financials</strong> tab. Default view is <strong>Ratios &amp; KPIs</strong>. Switch the dropdown to <strong>"Period Changes"</strong>.</div>
+          <div class="wt-actions">
+            <span class="wt-action">Gross Margin: 67.4% (+2.1pp vs Q2)</span>
+            <span class="wt-action">Revenue Growth YoY: +34.2% (Q3 FY2025 vs Q3 FY2024)</span>
+            <span class="wt-action">Current Ratio: 2.8x</span>
+            <span class="wt-action">Burn Rate: $420K/mo</span>
+            <span class="wt-action">Runway: 14.3 mo</span>
+          </div>
+          <div class="wt-result">→ Period Changes table shows every line item with absolute change ($) and % change, color-coded green/red. Toggle "Significant changes only" to filter.</div>
+        </div>
+      </div>
+
+      <div class="wt-step">
+        <div class="wt-num" style="background:#10b981;">7</div>
+        <div class="wt-content">
+          <div class="wt-title">Record a Valuation</div>
+          <div class="wt-desc">Navigate to the <strong>Valuations</strong> tab. Fill in the valuation form.</div>
+          <div class="wt-actions">
+            <span class="wt-action">Date: 2025-10-01</span>
+            <span class="wt-action">Methodology: Revenue Multiple</span>
+            <span class="wt-action">Financial Metric: Revenue @ Q3 FY2025</span>
+            <span class="wt-action">Multiple: 8.0x</span>
+            <span class="wt-action">Price per Share: $18.40</span>
+            <span class="wt-action">Implied EV: $64,000,000</span>
+          </div>
+          <div class="wt-result">→ Valuation saved. History chart (Recharts line) plots PPS over time. Security card on Overview now shows 1.47x return multiple ($18.40 / $12.50).</div>
+        </div>
+      </div>
+
+      <div class="wt-step">
+        <div class="wt-num" style="background:#3b82f6;">8</div>
+        <div class="wt-content">
+          <div class="wt-title">Ask an AI Insight Question</div>
+          <div class="wt-desc">Navigate to the <strong>AI Insights</strong> tab. The scope defaults to "This Investment". Type a question and press Enter.</div>
+          <div class="wt-actions">
+            <span class="wt-action">Q: "How is gross margin trending and what's driving the improvement?"</span>
+          </div>
+          <div class="wt-result">→ Claude streams a markdown response in real-time: shows calculated gross margin values per period, identifies revenue growing faster than COGS, notes the +2.1pp improvement, flags the burn rate and runway concern. Ask follow-up questions in the same session. Toggle to "All Investments" to compare Acme Corp across your portfolio.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section">
+    <h2>9. Cross-Component Event Bus</h2>
+    <p style="font-size:0.82rem;color:#475569;margin-bottom:12px;">Components communicate via custom DOM events to avoid prop drilling and enable decoupled refreshes.</p>
+    <table class="flow-table">
+      <thead>
+        <tr><th>Event</th><th>Fired by</th><th>Consumed by</th><th>Effect</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>statements-approved</code></td>
+          <td>FinancialStatements.jsx (Approve button)<br/>FinancialDataView.jsx (Approve button)</td>
+          <td>RatioKPICards.jsx</td>
+          <td>Re-fetches GET /ratios — KPI cards update without page reload</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section">
+    <h2>10. Deployment</h2>
+    <div class="arch-grid">
+      <div class="arch-box">
+        <h3>Docker Compose (Production)</h3>
+        <div class="arch-item"><div class="arch-dot dot-blue"></div><div><strong>db</strong> — Postgres 16, pgdata named volume, healthcheck</div></div>
+        <div class="arch-item"><div class="arch-dot dot-purple"></div><div><strong>backend</strong> — Python 3.12, depends on db healthy, uploads volume mounted</div></div>
+        <div class="arch-item"><div class="arch-dot dot-green"></div><div><strong>frontend</strong> — nginx multi-stage build; proxies /api → backend; SPA fallback; SSE buffering off</div></div>
+        <div class="arch-item"><div class="arch-dot dot-orange"></div><div><strong>DATABASE_URL</strong> — set via .env (FINANCE_DATABASE_URL=postgresql://...)</div></div>
+        <div class="arch-item"><div class="arch-dot dot-gray"></div><div><strong>Startup</strong>: <code>docker compose up --build</code></div></div>
+      </div>
+      <div class="arch-box">
+        <h3>Local Development</h3>
+        <div class="arch-item"><div class="arch-dot dot-blue"></div><div><strong>Backend</strong>: <code>uvicorn app.main:app --reload</code> — SQLite by default</div></div>
+        <div class="arch-item"><div class="arch-dot dot-purple"></div><div><strong>Frontend</strong>: <code>cd frontend &amp;&amp; npm run dev</code> — Vite on :5173, proxies /api → :8000</div></div>
+        <div class="arch-item"><div class="arch-dot dot-green"></div><div><strong>Env</strong>: copy .env.example → .env, set FINANCE_ANTHROPIC_API_KEY</div></div>
+        <div class="arch-item"><div class="arch-dot dot-orange"></div><div><strong>DB init</strong>: automatic on first start (create_all + migrations)</div></div>
+        <div class="arch-item"><div class="arch-dot dot-gray"></div><div><strong>Dual-dialect</strong>: migrations.py works with both SQLite and Postgres</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="text-align:center;padding:24px 0;color:#94a3b8;font-size:0.75rem;border-top:1px solid #e2e8f0;margin-top:24px;">
+    Valuation Dashboard — System Overview Document &mdash; Generated 2026-03-03
+  </div>
+
+</div>
+</body>
+</html>

@@ -18,6 +18,7 @@ from app.financial_parsing.priority_router import router as priority_router
 from app.financial_parsing.workflow_router import router as workflow_router
 from app.comparables.router import router as comparables_router
 from app.financial_tracker.router import router as financial_tracker_router
+from app.ai_insights.router import router as ai_insights_router
 
 
 @asynccontextmanager
@@ -35,7 +36,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["http://localhost:5173", "http://frontend:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -54,6 +55,7 @@ app.include_router(priority_router, prefix="/api/v1")
 app.include_router(workflow_router, prefix="/api/v1")
 app.include_router(comparables_router, prefix="/api/v1")
 app.include_router(financial_tracker_router, prefix="/api/v1")
+app.include_router(ai_insights_router, prefix="/api/v1")
 
 
 @app.get("/health")
